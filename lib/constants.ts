@@ -1,9 +1,16 @@
 import type { AppSettings } from "@/types/settings";
 
 export const DEFAULT_MODELS = [
+  // Keep the built-in list useful when the upstream /models endpoint is unavailable.
+  "claude-opus-4-8",
+  "claude-sonnet-4-6",
+  "claude-opus-4-7",
+  "claude-opus-4-6",
+  "claude-sonnet-5",
+  "claude-opus-5",
+  "claude-haiku-4-5",
   "claude-sonnet-4-5",
   "claude-opus-4-5",
-  "claude-haiku-4-5",
   "claude-3-7-sonnet",
   "gpt-4o",
   "deepseek-chat",

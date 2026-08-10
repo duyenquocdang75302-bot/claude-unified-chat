@@ -1,0 +1,16 @@
+node_modules
+.next
+.vinext
+dist
+.wrangler
+out
+.env
+.env.local
+.env.*.local
+npm-debug.log*
+.DS_Store
+coverage
+*.tsbuildinfo
+.vercel
+work
+outputs

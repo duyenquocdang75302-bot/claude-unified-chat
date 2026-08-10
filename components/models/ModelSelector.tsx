@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, LoaderCircle } from "lucide-react";
-import { isClaudeModel } from "@/lib/model-utils";
+import { groupModels } from "@/lib/model-utils";
 import type { ModelInfo } from "@/types/model";
 
 export function ModelSelector({ model, models, loading, onChange }: { model: string; models: ModelInfo[]; loading: boolean; onChange: (model: string) => void }) {
@@ -10,8 +10,7 @@ export function ModelSelector({ model, models, loading, onChange }: { model: str
   const [customId, setCustomId] = useState(model);
   const known = useMemo(() => models.some((item) => item.id === model), [models, model]);
   useEffect(() => { if (!known) { setCustom(true); setCustomId(model); } }, [known, model]);
-  const claude = models.filter((item) => isClaudeModel(item.id));
-  const others = models.filter((item) => !isClaudeModel(item.id));
+  const groups = useMemo(() => groupModels(models), [models]);
 
   if (custom) {
     return (
@@ -43,12 +42,11 @@ export function ModelSelector({ model, models, loading, onChange }: { model: str
         className="h-9 max-w-[58vw] appearance-none rounded-xl border border-line bg-panel py-0 pl-9 pr-9 text-sm font-medium text-ink outline-none hover:border-muted focus:border-accent sm:max-w-xs"
         aria-label="选择模型"
       >
-        <optgroup label="Claude 系列">
-          {claude.map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}
-        </optgroup>
-        <optgroup label="其他模型">
-          {others.map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}
-        </optgroup>
+        {groups.map((group) => (
+          <optgroup key={group.id} label={group.label}>
+            {group.models.map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}
+          </optgroup>
+        ))}
         <option value="__custom">自定义模型 ID…</option>
       </select>
       <ChevronDown className="pointer-events-none absolute right-3 top-2.5 h-4 w-4 text-muted" />

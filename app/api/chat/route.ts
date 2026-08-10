@@ -10,7 +10,8 @@ import { mergeProjectSystemPrompt } from "@/lib/project-utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 600;
+// Vercel Hobby allows a maximum of 300 seconds for a serverless function.
+export const maxDuration = 300;
 
 const FIRST_RESPONSE_TIMEOUT_MS = 180_000;
 const STREAM_IDLE_TIMEOUT_MS = 180_000;

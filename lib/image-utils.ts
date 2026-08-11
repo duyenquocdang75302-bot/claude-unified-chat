@@ -33,8 +33,10 @@ export async function prepareImage(file: File): Promise<ImageAttachment> {
     canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
     const context = canvas.getContext("2d");
     if (!context) throw new Error("浏览器不支持图片压缩");
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
-    mimeType = file.type === "image/png" && file.size <= 4 * 1024 * 1024 ? "image/png" : "image/jpeg";
+    mimeType = "image/jpeg";
     dataUrl = canvas.toDataURL(mimeType, IMAGE_JPEG_QUALITY);
   }
 

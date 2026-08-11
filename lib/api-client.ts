@@ -1,23 +1,32 @@
 import type { ChatMessage, Conversation } from "@/types/chat";
 import { toUpstreamMessages } from "@/lib/message-utils";
+import { MAX_CHAT_REQUEST_BYTES } from "@/lib/constants";
 
 export async function requestChat(
   conversation: Conversation,
   messages: ChatMessage[],
   signal: AbortSignal,
 ) {
+  const requestBody = JSON.stringify({
+    model: conversation.model,
+    messages: toUpstreamMessages(messages),
+    temperature: conversation.parameters.temperature,
+    max_tokens: conversation.parameters.maxTokens,
+    systemPrompt: conversation.parameters.systemPrompt,
+    projectId: conversation.projectId ?? null,
+    stream: true,
+  });
+  const requestBytes = new TextEncoder().encode(requestBody).byteLength;
+  if (requestBytes > MAX_CHAT_REQUEST_BYTES) {
+    throw new Error(
+      `请求内容 ${(requestBytes / 1024 / 1024).toFixed(1)}MB 过大，请减少本次图片或文件数量后重试`,
+    );
+  }
+
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: conversation.model,
-      messages: toUpstreamMessages(messages),
-      temperature: conversation.parameters.temperature,
-      max_tokens: conversation.parameters.maxTokens,
-      systemPrompt: conversation.parameters.systemPrompt,
-      projectId: conversation.projectId ?? null,
-      stream: true,
-    }),
+    body: requestBody,
     signal,
   });
 

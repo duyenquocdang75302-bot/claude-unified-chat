@@ -28,7 +28,8 @@ export const MAX_FILE_BYTES = 20 * 1024 * 1024;
 export const IMAGE_COMPRESS_THRESHOLD = 500 * 1024; // 单图超过 500KB 触发压缩
 export const MAX_IMAGE_DIMENSION = 1536; // 压缩后最大边长
 export const IMAGE_JPEG_QUALITY = 0.65; // JPEG 压缩质量
-export const MAX_TOTAL_IMAGE_SIZE = 3 * 1024 * 1024; // 所有图片总大小限制 3MB
+export const MAX_TOTAL_IMAGE_SIZE = 2.5 * 1024 * 1024; // Base64 会额外膨胀约 33%
+export const MAX_CHAT_REQUEST_BYTES = 4 * 1024 * 1024; // 低于 Vercel 4.5MB 请求体上限
 export const CLAUDE_DOCUMENT_LIMIT = 150_000;
 export const OTHER_DOCUMENT_LIMIT = 50_000;
 

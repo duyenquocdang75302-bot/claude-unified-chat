@@ -21,7 +21,7 @@ The application supports multiple server-side shared projects. All authenticated
 - 启动后从 `/models` 自动加载模型，失败时回退到内置模型列表
 - Claude 系列置顶，并支持手动输入任意模型 ID
 - Markdown、GFM、代码高亮、一键复制及 KaTeX 数学公式
-- 图片多选、剪贴板粘贴和拖拽上传，超过 500KB 自动压缩至最大边长 1536px，JPEG 质量 65%，所有图片总大小限制 3MB
+- 图片多选、剪贴板粘贴和拖拽上传，超过 500KB 自动压缩至最大边长 1536px，JPEG 质量 65%，单次图片总大小限制 2.5MB
 - PDF、DOCX、文本、CSV、JSON 和常见代码文件解析
 - 会话历史、图片、项目知识保存在浏览器 `IndexedDB`，旧版 `localStorage` 数据会自动迁移
 - Claude Projects 风格的项目工作区：项目指令、知识库、默认模型和项目内独立会话
@@ -168,4 +168,5 @@ pnpm start      # 启动生产构建
 - 不同账号的本地会话分开保存；旧版会话只迁移到管理员账号。
 - Token 用量汇总保存在配置的 Upstash Redis 中，不保存聊天正文。
 - 发送消息时，对话上下文和附件会通过本站服务端转发给配置的 API 服务商。
+- 为避免请求体随对话无限增长，仅最近一次包含附件的消息会继续携带附件内容；更早的附件只保留文件名提示。
 - 清理浏览器站点数据会删除本地会话，重要会话请提前导出。

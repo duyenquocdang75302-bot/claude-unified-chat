@@ -29,7 +29,7 @@ import { useSettings } from "@/contexts/SettingsContext";
 import { useToast } from "@/contexts/ToastContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { deleteSharedProject, fetchSharedProjects, saveSharedProject } from "@/lib/project-client";
-import { isSharedProjectId, SHARED_PROJECT_ID } from "@/lib/constants";
+import { isSharedProjectId, MAX_TOTAL_IMAGE_SIZE, SHARED_PROJECT_ID } from "@/lib/constants";
 
 type ProjectDraft = {
   name: string;
@@ -516,6 +516,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     if (!conversation || generating || (!content.trim() && !images.length && !documents.length)) {
       return false;
     }
+
+    // 检查图片总体积
+    const totalImageSize = images.reduce((sum, img) => sum + img.size, 0);
+    if (totalImageSize > MAX_TOTAL_IMAGE_SIZE) {
+      notify(`图片总大小 ${(totalImageSize / 1024 / 1024).toFixed(1)}MB 超过 ${MAX_TOTAL_IMAGE_SIZE / 1024 / 1024}MB 限制，请减少图片数量`, "error");
+      return false;
+    }
+
     const userMessage: ChatMessage = {
       id: createId("msg"),
       role: "user",
@@ -538,7 +546,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     mutateConversation(conversation.id, () => updated);
     await runGeneration(updated, messages);
     return true;
-  }, [activeId, generating, mutateConversation, runGeneration]);
+  }, [activeId, generating, mutateConversation, runGeneration, notify]);
 
   const regenerateMessage = useCallback(async (messageId: string) => {
     if (generating) return;

@@ -21,7 +21,7 @@ The application supports multiple server-side shared projects. All authenticated
 - 启动后从 `/models` 自动加载模型，失败时回退到内置模型列表
 - Claude 系列置顶，并支持手动输入任意模型 ID
 - Markdown、GFM、代码高亮、一键复制及 KaTeX 数学公式
-- 图片多选、剪贴板粘贴和拖拽上传，超过 2MB 自动压缩
+- 图片多选、剪贴板粘贴和拖拽上传，超过 500KB 自动压缩至最大边长 1536px，JPEG 质量 65%，所有图片总大小限制 3MB
 - PDF、DOCX、文本、CSV、JSON 和常见代码文件解析
 - 会话历史、图片、项目知识保存在浏览器 `IndexedDB`，旧版 `localStorage` 数据会自动迁移
 - Claude Projects 风格的项目工作区：项目指令、知识库、默认模型和项目内独立会话

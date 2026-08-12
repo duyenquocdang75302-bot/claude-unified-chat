@@ -24,12 +24,13 @@ async function copyToClipboard(text: string) {
   if (!copied) throw new Error("copy failed");
 }
 
-export const ChatMessage = memo(function ChatMessage({ message, generating, onEdit, onDelete, onRegenerate }: {
+export const ChatMessage = memo(function ChatMessage({ message, generating, onEdit, onDelete, onRegenerate, onContinue }: {
   message: ChatMessageType;
   generating: boolean;
   onEdit: (content: string) => void;
   onDelete: () => void;
   onRegenerate: () => void;
+  onContinue: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.content);
@@ -75,6 +76,12 @@ export const ChatMessage = memo(function ChatMessage({ message, generating, onEd
         )}
         {message.documents?.length ? <div className="mt-3 flex flex-wrap gap-2">{message.documents.map((file) => <span key={file.id} className="rounded-lg border border-line bg-panel px-2 py-1 text-[11px] text-muted">📄 {file.name}{file.truncated ? "（已截断）" : ""}</span>)}</div> : null}
         {message.error ? <p className="mt-3 text-sm text-red-500">{message.error}</p> : null}
+        {message.finishReason === "length" ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-amber-600">
+            <span>输出已达到最大 Tokens 限制，请继续生成剩余内容。</span>
+            <Button size="sm" variant="ghost" onClick={onContinue} disabled={generating}>继续生成</Button>
+          </div>
+        ) : null}
         {!editing && message.status !== "streaming" ? (
           <div className="mt-3 flex gap-1 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
             <Button size="sm" variant="ghost" onClick={() => setEditing(true)} disabled={generating}><Pencil className="h-3.5 w-3.5" />编辑</Button>

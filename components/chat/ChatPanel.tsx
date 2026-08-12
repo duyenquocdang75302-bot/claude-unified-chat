@@ -8,7 +8,7 @@ import { MessageList } from "@/components/chat/MessageList";
 import { useAttachments } from "@/hooks/useAttachments";
 import type { Conversation } from "@/types/chat";
 
-export function ChatPanel({ conversation, generating, onSend, onStop, onEdit, onDelete, onRegenerate }: {
+export function ChatPanel({ conversation, generating, onSend, onStop, onEdit, onDelete, onRegenerate, onContinue }: {
   conversation: Conversation;
   generating: boolean;
   onSend: ReturnType<typeof useAttachments> extends never ? never : (content: string, images: ReturnType<typeof useAttachments>["images"], documents: ReturnType<typeof useAttachments>["documents"]) => Promise<boolean>;
@@ -16,6 +16,7 @@ export function ChatPanel({ conversation, generating, onSend, onStop, onEdit, on
   onEdit: (id: string, content: string) => void;
   onDelete: (id: string) => void;
   onRegenerate: (id: string) => void;
+  onContinue: (id: string) => void;
 }) {
   const attachments = useAttachments(conversation.model);
   const [dragging, setDragging] = useState(false);
@@ -35,7 +36,7 @@ export function ChatPanel({ conversation, generating, onSend, onStop, onEdit, on
     >
       <div className="min-h-0 flex-1">
         {conversation.messages.length ? (
-          <MessageList messages={conversation.messages} generating={generating} onEdit={onEdit} onDelete={onDelete} onRegenerate={onRegenerate} />
+          <MessageList messages={conversation.messages} generating={generating} onEdit={onEdit} onDelete={onDelete} onRegenerate={onRegenerate} onContinue={onContinue} />
         ) : <EmptyChat model={conversation.model} onPrompt={(value) => { setPrompt(""); window.setTimeout(() => setPrompt(value), 0); }} />}
       </div>
       <ChatComposer

@@ -5,12 +5,13 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import type { ChatMessage as ChatMessageType } from "@/types/chat";
 
-export function MessageList({ messages, generating, onEdit, onDelete, onRegenerate }: {
+export function MessageList({ messages, generating, onEdit, onDelete, onRegenerate, onContinue }: {
   messages: ChatMessageType[];
   generating: boolean;
   onEdit: (id: string, content: string) => void;
   onDelete: (id: string) => void;
   onRegenerate: (id: string) => void;
+  onContinue: (id: string) => void;
 }) {
   const parentRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
@@ -32,7 +33,7 @@ export function MessageList({ messages, generating, onEdit, onDelete, onRegenera
           const message = messages[row.index];
           return (
             <div key={message.id} ref={virtualizer.measureElement} data-index={row.index} className="absolute left-0 top-0 w-full" style={{ transform: `translateY(${row.start}px)` }}>
-              <ChatMessage message={message} generating={generating} onEdit={(content) => onEdit(message.id, content)} onDelete={() => onDelete(message.id)} onRegenerate={() => onRegenerate(message.id)} />
+              <ChatMessage message={message} generating={generating} onEdit={(content) => onEdit(message.id, content)} onDelete={() => onDelete(message.id)} onRegenerate={() => onRegenerate(message.id)} onContinue={() => onContinue(message.id)} />
             </div>
           );
         })}

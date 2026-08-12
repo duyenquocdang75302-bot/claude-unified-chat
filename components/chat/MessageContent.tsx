@@ -58,24 +58,21 @@ const MarkdownChunk = memo(function MarkdownChunk({ content }: { content: string
 });
 
 function splitShotSections(content: string) {
-  const lines = content.split(/\r?\n/);
-  const sections: Array<{ heading: string; content: string }> = [];
-  const prefix: string[] = [];
-  let current: { heading: string; lines: string[] } | null = null;
+  // Shot markers are often emitted inline as `--- Shot 1`, rather than on
+  // their own Markdown line. Split on every numbered marker in the source.
+  const markerPattern = /(?:^|\s)(?:---\s*)?Shot\s+\d+\b/gi;
+  const markers = [...content.matchAll(markerPattern)];
+  if (markers.length < 2) return null;
 
-  for (const line of lines) {
-    const heading = line.match(/^\s*(?:#{1,6}\s*)?Shot\s+\d+\b[^\n]*$/i);
-    if (heading) {
-      if (current) sections.push({ heading: current.heading, content: current.lines.join("\n").trim() });
-      current = { heading: line, lines: [] };
-    } else if (current) {
-      current.lines.push(line);
-    } else {
-      prefix.push(line);
-    }
-  }
-  if (current) sections.push({ heading: current.heading, content: current.lines.join("\n").trim() });
-  return sections.length ? { prefix: prefix.join("\n").trim(), sections } : null;
+  const firstStart = markers[0].index ?? 0;
+  const sections = markers.map((marker, index) => {
+    const start = marker.index ?? 0;
+    const markerText = marker[0].trim().replace(/^---\s*/, "");
+    const contentStart = start + marker[0].length;
+    const end = index + 1 < markers.length ? markers[index + 1].index ?? content.length : content.length;
+    return { heading: markerText, content: content.slice(contentStart, end).replace(/^\s*[-:]?\s*/, "").trim() };
+  });
+  return { prefix: content.slice(0, firstStart).trim(), sections };
 }
 
 const ShotSection = memo(function ShotSection({ heading, content }: { heading: string; content: string }) {

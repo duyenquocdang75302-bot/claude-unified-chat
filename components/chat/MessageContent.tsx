@@ -58,36 +58,66 @@ const MarkdownChunk = memo(function MarkdownChunk({ content }: { content: string
 });
 
 function splitShotSections(content: string) {
+  const normalized = content
+    .replace(/^\s*```(?:text|markdown)?\s*\r?\n/i, "")
+    .replace(/\r?\n```\s*$/i, "")
+    .trim();
+
   // Shot markers are often emitted inline as `--- Shot 1`, rather than on
   // their own Markdown line. Split on every numbered marker in the source.
   const markerPattern = /(?:^|\s)(?:---\s*)?Shot\s+\d+\b/gi;
-  const markers = [...content.matchAll(markerPattern)];
+  const markers = [...normalized.matchAll(markerPattern)];
   if (markers.length >= 2) {
     const firstStart = markers[0].index ?? 0;
     const sections = markers.map((marker, index) => {
       const start = marker.index ?? 0;
       const heading = marker[0].trim().replace(/^---\s*/, "");
       const contentStart = start + marker[0].length;
-      const end = index + 1 < markers.length ? markers[index + 1].index ?? content.length : content.length;
-      const body = content.slice(contentStart, end).replace(/^\s*[-:]?\s*/, "").replace(/\s*---\s*$/, "").trim();
+      const end = index + 1 < markers.length ? markers[index + 1].index ?? normalized.length : normalized.length;
+      const body = normalized.slice(contentStart, end).replace(/^\s*[-:]?\s*/, "").replace(/\s*---\s*$/, "").trim();
       return { heading, content: body, copyContent: `${heading}\n\n${body}`.trim() };
     });
-    return { prefix: content.slice(0, firstStart).trim(), sections };
+    return { prefix: normalized.slice(0, firstStart).trim(), sections };
+  }
+
+  // A common manifest may be followed by multiple prompts separated only by
+  // standalone Markdown rules. This format is frequently wrapped in one code
+  // fence, so normalize the fence before splitting.
+  const delimiterPattern = /^\s*---\s*$/gm;
+  const delimiters = [...normalized.matchAll(delimiterPattern)];
+  if (delimiters.length) {
+    const blocks = normalized
+      .split(delimiterPattern)
+      .map((block) => block.trim())
+      .filter(Boolean);
+    const shotLikeBlocks = blocks.filter((block) =>
+      /Shot\s+type\s*&\s*primary\s+reference/i.test(block) || /^UPLOAD MANIFEST\b/i.test(block),
+    );
+    const firstBlockIsShot = /Shot\s+type\s*&\s*primary\s+reference/i.test(blocks[0] ?? "");
+    const prefix = firstBlockIsShot ? "" : blocks.shift() ?? "";
+    if (blocks.length >= 2 && shotLikeBlocks.length >= 2) {
+      const sections = blocks.map((body, index) => ({
+        heading: `Shot ${index + 1}`,
+        content: body,
+        copyContent: body,
+      }));
+      return { prefix, sections };
+    }
   }
 
   // Some project prompts omit Shot headings completely. Each generated shot
   // starts with its own repeated UPLOAD MANIFEST and is separated by `---`.
   const manifestPattern = /^UPLOAD MANIFEST\b/gim;
-  const manifests = [...content.matchAll(manifestPattern)];
+  const manifests = [...normalized.matchAll(manifestPattern)];
   if (manifests.length < 2) return null;
   const firstStart = manifests[0].index ?? 0;
   const sections = manifests.map((manifest, index) => {
     const start = manifest.index ?? 0;
-    const end = index + 1 < manifests.length ? manifests[index + 1].index ?? content.length : content.length;
-    const body = content.slice(start, end).replace(/\s*---\s*$/, "").trim();
+    const end = index + 1 < manifests.length ? manifests[index + 1].index ?? normalized.length : normalized.length;
+    const body = normalized.slice(start, end).replace(/\s*---\s*$/, "").trim();
     return { heading: `Shot ${index + 1}`, content: body, copyContent: body };
   });
-  return { prefix: content.slice(0, firstStart).trim(), sections };
+  return { prefix: normalized.slice(0, firstStart).trim(), sections };
 }
 
 const ShotSection = memo(function ShotSection({ heading, content, copyContent }: { heading: string; content: string; copyContent: string }) {

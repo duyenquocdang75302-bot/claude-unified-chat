@@ -1,10 +1,11 @@
 type StreamCallbacks = {
   onToken: (token: string) => void;
+  onFinish?: (reason: string | null) => void;
 };
 
 function extractText(payload: unknown) {
   if (!payload || typeof payload !== "object") return "";
-  const data = payload as { choices?: Array<{ delta?: { content?: string | Array<{ text?: string }> }; text?: string }> };
+  const data = payload as { choices?: Array<{ delta?: { content?: string | Array<{ text?: string }> }; text?: string; finish_reason?: string | null }> };
   const choice = data.choices?.[0];
   const content = choice?.delta?.content ?? choice?.text ?? "";
   if (typeof content === "string") return content;
@@ -45,6 +46,8 @@ export async function consumeChatStream(response: Response, callbacks: StreamCal
       }
       const error = extractError(payload);
       if (error) throw new Error(error);
+      const finishReason = (payload as { choices?: Array<{ finish_reason?: string | null }> }).choices?.[0]?.finish_reason;
+      if (finishReason !== undefined) callbacks.onFinish?.(finishReason ?? null);
       callbacks.onToken(extractText(payload));
     }
     if (done) break;

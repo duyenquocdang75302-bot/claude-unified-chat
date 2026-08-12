@@ -188,7 +188,8 @@ export function saveActiveConversationId(id: string | null) {
 }
 
 export function loadSettings(): AppSettings {
-  return { ...DEFAULT_SETTINGS, ...readScopedJson<Partial<AppSettings>>(SETTINGS_KEY, {}) };
+  const stored = readScopedJson<Partial<AppSettings>>(SETTINGS_KEY, {});
+  return { ...DEFAULT_SETTINGS, ...stored };
 }
 
 export function saveSettings(settings: AppSettings) {

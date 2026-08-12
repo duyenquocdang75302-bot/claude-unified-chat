@@ -36,7 +36,7 @@ export const OTHER_DOCUMENT_LIMIT = 50_000;
 export const DEFAULT_SETTINGS: AppSettings = {
   defaultModel: DEFAULT_MODEL,
   temperature: 0.7,
-  maxTokens: 8192,
+  maxTokens: 16384,
   systemPrompt: "",
   theme: "system",
 };

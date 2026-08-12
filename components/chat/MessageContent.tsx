@@ -62,24 +62,39 @@ function splitShotSections(content: string) {
   // their own Markdown line. Split on every numbered marker in the source.
   const markerPattern = /(?:^|\s)(?:---\s*)?Shot\s+\d+\b/gi;
   const markers = [...content.matchAll(markerPattern)];
-  if (markers.length < 2) return null;
+  if (markers.length >= 2) {
+    const firstStart = markers[0].index ?? 0;
+    const sections = markers.map((marker, index) => {
+      const start = marker.index ?? 0;
+      const heading = marker[0].trim().replace(/^---\s*/, "");
+      const contentStart = start + marker[0].length;
+      const end = index + 1 < markers.length ? markers[index + 1].index ?? content.length : content.length;
+      const body = content.slice(contentStart, end).replace(/^\s*[-:]?\s*/, "").replace(/\s*---\s*$/, "").trim();
+      return { heading, content: body, copyContent: `${heading}\n\n${body}`.trim() };
+    });
+    return { prefix: content.slice(0, firstStart).trim(), sections };
+  }
 
-  const firstStart = markers[0].index ?? 0;
-  const sections = markers.map((marker, index) => {
-    const start = marker.index ?? 0;
-    const markerText = marker[0].trim().replace(/^---\s*/, "");
-    const contentStart = start + marker[0].length;
-    const end = index + 1 < markers.length ? markers[index + 1].index ?? content.length : content.length;
-    return { heading: markerText, content: content.slice(contentStart, end).replace(/^\s*[-:]?\s*/, "").trim() };
+  // Some project prompts omit Shot headings completely. Each generated shot
+  // starts with its own repeated UPLOAD MANIFEST and is separated by `---`.
+  const manifestPattern = /^UPLOAD MANIFEST\b/gim;
+  const manifests = [...content.matchAll(manifestPattern)];
+  if (manifests.length < 2) return null;
+  const firstStart = manifests[0].index ?? 0;
+  const sections = manifests.map((manifest, index) => {
+    const start = manifest.index ?? 0;
+    const end = index + 1 < manifests.length ? manifests[index + 1].index ?? content.length : content.length;
+    const body = content.slice(start, end).replace(/\s*---\s*$/, "").trim();
+    return { heading: `Shot ${index + 1}`, content: body, copyContent: body };
   });
   return { prefix: content.slice(0, firstStart).trim(), sections };
 }
 
-const ShotSection = memo(function ShotSection({ heading, content }: { heading: string; content: string }) {
+const ShotSection = memo(function ShotSection({ heading, content, copyContent }: { heading: string; content: string; copyContent: string }) {
   const [copied, setCopied] = useState(false);
   const handleCopy = async () => {
     try {
-      await copyText(`${heading}\n\n${content}`.trim());
+      await copyText(copyContent);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1800);
     } catch {
@@ -88,8 +103,9 @@ const ShotSection = memo(function ShotSection({ heading, content }: { heading: s
   };
 
   return (
-    <section className="group/shot relative border-b border-line/70 pb-5 pt-1 last:border-b-0">
-      <div className="absolute right-0 top-0">
+    <section className="group/shot relative my-5 border-t border-line pt-5 first:mt-2">
+      <div className="mb-4 flex min-h-8 items-center justify-between gap-3">
+        <h3 className="m-0 text-base font-semibold text-ink">{heading}</h3>
         <button
           type="button"
           onClick={handleCopy}
@@ -100,9 +116,7 @@ const ShotSection = memo(function ShotSection({ heading, content }: { heading: s
           {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
         </button>
       </div>
-      <div className="pr-10">
-        <MarkdownChunk content={`${heading}\n\n${content}`.trim()} />
-      </div>
+      <MarkdownChunk content={content} />
     </section>
   );
 });
@@ -120,7 +134,7 @@ export const MessageContent = memo(function MessageContent({ content, images = [
       ))}</div> : null}
       <div className="markdown-body">
         {shotSections
-          ? <>{shotSections.prefix ? <MarkdownChunk content={shotSections.prefix} /> : null}{shotSections.sections.map((shot, index) => <ShotSection key={`${index}-${shot.heading}`} heading={shot.heading} content={shot.content} />)}</>
+          ? <>{shotSections.prefix ? <MarkdownChunk content={shotSections.prefix} /> : null}{shotSections.sections.map((shot, index) => <ShotSection key={`${index}-${shot.heading}`} heading={shot.heading} content={shot.content} copyContent={shot.copyContent} />)}</>
           : chunks.map((chunk, index) => <MarkdownChunk key={`${index}-${chunk.length}`} content={chunk} />)}
         {streaming ? <span className="stream-cursor" /> : null}
       </div>

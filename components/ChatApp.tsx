@@ -91,6 +91,7 @@ export function ChatApp() {
               onEdit={chat.editMessage}
               onDelete={chat.deleteMessage}
               onRegenerate={(id) => void chat.regenerateMessage(id)}
+              onContinue={(id) => void chat.continueGeneration(id)}
             />
           </>
         ) : chat.activeProject ? (

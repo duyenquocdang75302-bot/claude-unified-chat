@@ -63,6 +63,7 @@ type ChatContextValue = {
   sendMessage: (content: string, images: ImageAttachment[], documents: DocumentAttachment[]) => Promise<boolean>;
   stopGeneration: () => void;
   regenerateMessage: (messageId: string) => Promise<void>;
+  continueGeneration: (messageId: string) => Promise<void>;
   editMessage: (messageId: string, content: string) => void;
   deleteMessage: (messageId: string) => void;
 };
@@ -408,6 +409,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setGenerating(true);
     let pending = "";
     let responseText = "";
+    let finishReason: string | null = null;
     let flushTimer: number | null = null;
 
     const flush = () => {
@@ -447,16 +449,19 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             }, 45);
           }
         },
+        onFinish(reason) {
+          finishReason = reason;
+        },
       });
       if (flushTimer !== null) window.clearTimeout(flushTimer);
       flush();
       const completedMessages: ChatMessage[] = [
         ...baseMessages,
-        { ...assistant, content: responseText, status: "complete" },
+        { ...assistant, content: responseText, status: "complete", finishReason },
       ];
       mutateConversation(conversation.id, (current) => {
         const messages: ChatMessage[] = current.messages.map((message) =>
-          message.id === assistantId ? { ...message, status: "complete" } : message,
+          message.id === assistantId ? { ...message, status: "complete", finishReason } : message,
         );
         return {
           ...current,
@@ -558,6 +563,26 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     if (index < 0) return;
     const baseMessages = conversation.messages.slice(0, index);
     mutateConversation(conversation.id, (current) => ({ ...current, messages: baseMessages }));
+    await runGeneration({ ...conversation, messages: baseMessages }, baseMessages);
+  }, [activeId, generating, mutateConversation, runGeneration]);
+
+  const continueGeneration = useCallback(async (messageId: string) => {
+    if (generating) return;
+    const conversation = conversationsRef.current.find((item) => item.id === activeId);
+    if (!conversation) return;
+    const index = conversation.messages.findIndex(
+      (message) => message.id === messageId && message.role === "assistant" && message.finishReason === "length",
+    );
+    if (index < 0) return;
+    const continuation: ChatMessage = {
+      id: createId("msg"),
+      role: "user",
+      content: "请从上次中断处继续输出，不要重复已经输出的内容。",
+      createdAt: Date.now(),
+      status: "complete",
+    };
+    const baseMessages = [...conversation.messages.slice(0, index + 1), continuation];
+    mutateConversation(conversation.id, (current) => ({ ...current, messages: baseMessages, updatedAt: Date.now() }));
     await runGeneration({ ...conversation, messages: baseMessages }, baseMessages);
   }, [activeId, generating, mutateConversation, runGeneration]);
 
@@ -667,6 +692,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     sendMessage,
     stopGeneration: () => abortRef.current?.abort(),
     regenerateMessage,
+    continueGeneration,
     editMessage: (messageId, content) =>
       activeId &&
       mutateConversation(activeId, (current) => ({
@@ -704,6 +730,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     selectProject,
     sendMessage,
     regenerateMessage,
+    continueGeneration,
   ]);
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

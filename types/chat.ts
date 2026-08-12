@@ -26,6 +26,7 @@ export interface ChatMessage {
   createdAt: number;
   status?: "streaming" | "complete" | "error";
   error?: string;
+  finishReason?: string | null;
 }
 
 export interface ChatParameters {

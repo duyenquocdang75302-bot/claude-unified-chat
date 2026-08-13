@@ -25,16 +25,17 @@ function headingMatches(content: string) {
   const linePattern = /^.*$/gm;
   for (const line of content.matchAll(linePattern)) {
     const trimmed = line[0].trim();
-    const explicit = trimmed.match(/^(?:#{1,6}\s+|---\s+)(Shot\s+(\d+)\b.*)$/i);
-    const uppercase = trimmed.match(/^(SHOT\s+(\d+)\b(?:\s*(?:[-—:•]\s*.+))?)$/);
-    const plain = trimmed.match(/^(Shot\s+(\d+))$/i);
-    const match = explicit ?? uppercase ?? plain;
+    const match = trimmed.match(
+      /^(?:#{1,6}\s+)?(?:★\s*)?(?:={3,}\s*)?Shot\s*#?\s*(\d+)\b(?:\s*(?:[-—:•]\s*)(.*?))?\s*(?:={3,})?$/i,
+    );
     if (!match) continue;
+    const number = Number(match[1]);
+    const description = match[2]?.replace(/\s*=+\s*$/, "").trim();
     matches.push({
       index: line.index ?? 0,
       source: line[0],
-      heading: match[1].trim(),
-      number: Number(match[2]),
+      heading: description ? `Shot ${number} — ${description}` : `Shot ${number}`,
+      number,
     });
   }
   return matches;
@@ -51,7 +52,11 @@ function parseExplicitHeadings(content: string): ParsedShotSections | null {
   const sections = matches.map((match, index) => {
     const contentStart = match.index + match.source.length;
     const end = index + 1 < matches.length ? matches[index + 1].index : content.length;
-    const body = content.slice(contentStart, end).replace(/^\s*[-:]?\s*/, "").replace(/\s*---\s*$/, "").trim();
+    const body = content
+      .slice(contentStart, end)
+      .replace(/^\s*(?:(?:-{3,}|={3,})\s*)?/, "")
+      .replace(/\s*(?:-{3,}|={3,})\s*$/, "")
+      .trim();
     return {
       heading: match.heading,
       content: body,
@@ -102,7 +107,8 @@ function parseRepeatedManifests(content: string): ParsedShotSections | null {
 
 export function splitShotSections(content: string): ParsedShotSections | null {
   const normalized = normalizeContent(content);
-  return parseDelimitedBlocks(normalized)
+  return parseExplicitHeadings(normalized)
+    ?? parseDelimitedBlocks(normalized)
     ?? parseRepeatedManifests(normalized)
-    ?? parseExplicitHeadings(normalized);
+    ?? null;
 }

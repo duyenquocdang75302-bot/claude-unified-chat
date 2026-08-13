@@ -65,9 +65,12 @@ export const ChatMessage = memo(function ChatMessage({ message, generating, onEd
         {message.documents?.length ? <div className="mt-3 flex flex-wrap gap-2">{message.documents.map((file) => <span key={file.id} className="rounded-lg border border-line bg-panel px-2 py-1 text-[11px] text-muted">📄 {file.name}{file.truncated ? "（已截断）" : ""}</span>)}</div> : null}
         {message.error ? <p className="mt-3 text-sm text-red-500">{message.error}</p> : null}
         {message.finishReason === "length" ? (
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-amber-600">
-            <span>输出已达到最大 Tokens 限制，请继续生成剩余内容。</span>
-            <Button size="sm" variant="ghost" onClick={onContinue} disabled={generating}>继续生成</Button>
+          <div className="mt-4 flex flex-col gap-3 rounded-xl border border-amber-300/70 bg-amber-50/70 p-3 text-sm text-amber-800 dark:border-amber-700/70 dark:bg-amber-950/25 dark:text-amber-300 sm:flex-row sm:items-center sm:justify-between">
+            <span>输出已达到最大 Tokens 限制，剩余内容尚未生成。</span>
+            <Button size="sm" variant="primary" onClick={onContinue} disabled={generating} className="w-full sm:w-auto">
+              <RefreshCw className="h-3.5 w-3.5" />
+              {generating ? "正在继续…" : "继续生成剩余内容"}
+            </Button>
           </div>
         ) : null}
         {!editing && message.status !== "streaming" ? (
@@ -77,18 +80,25 @@ export const ChatMessage = memo(function ChatMessage({ message, generating, onEd
               {!isUser ? <Button size="sm" variant="ghost" onClick={onRegenerate} disabled={generating}><RefreshCw className="h-3.5 w-3.5" />重新生成</Button> : null}
               <Button size="sm" variant="danger" onClick={onDelete} disabled={generating}><Trash2 className="h-3.5 w-3.5" />删除</Button>
             </div>
-            {!isUser && message.content ? (
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={handleCopy}
-                aria-label={copied ? "已复制 AI 回复" : "复制 AI 回复"}
-                title={copied ? "已复制" : "复制全文"}
-                className="h-8 w-8"
-              >
-                {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
-              </Button>
-            ) : null}
+            <div className="flex items-center gap-1">
+              {!isUser && message.finishReason === "length" ? (
+                <Button size="sm" variant="secondary" onClick={onContinue} disabled={generating}>
+                  <RefreshCw className="h-3.5 w-3.5" />继续生成
+                </Button>
+              ) : null}
+              {!isUser && message.content ? (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={handleCopy}
+                  aria-label={copied ? "已复制 AI 回复" : "复制 AI 回复"}
+                  title={copied ? "已复制" : "复制全文"}
+                  className="h-8 w-8"
+                >
+                  {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              ) : null}
+            </div>
           </div>
         ) : null}
       </div>

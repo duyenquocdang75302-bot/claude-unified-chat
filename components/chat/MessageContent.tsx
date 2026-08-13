@@ -60,9 +60,9 @@ const MarkdownChunk = memo(function MarkdownChunk({ content }: { content: string
 
 const ShotSection = memo(function ShotSection({ heading, content, copyContent }: { heading: string; content: string; copyContent: string }) {
   const [copied, setCopied] = useState(false);
-  const handleCopy = async () => {
+  const handleCopy = async (sectionContent: string) => {
     try {
-      await copyText(copyContent);
+      await copyText(sectionContent);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1800);
     } catch {
@@ -71,14 +71,14 @@ const ShotSection = memo(function ShotSection({ heading, content, copyContent }:
   };
 
   return (
-    <section className="group/shot relative my-5 border-t border-line pt-5 first:mt-2">
+    <section className="group/shot relative my-4 rounded-xl border border-line bg-canvas/30 p-4 first:mt-2">
       <div className="mb-4 flex min-h-8 items-center justify-between gap-3">
         <h3 className="m-0 text-base font-semibold text-ink">{heading}</h3>
         <button
           type="button"
-          onClick={handleCopy}
-          aria-label={copied ? "已复制此英文分镜" : "复制此英文分镜"}
-          title={copied ? "已复制此英文分镜" : "复制此英文分镜"}
+          onClick={() => handleCopy(copyContent)}
+          aria-label={copied ? `已复制 ${heading}` : `复制 ${heading}`}
+          title={copied ? `已复制 ${heading}` : `复制 ${heading}`}
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted transition hover:bg-muted/10 hover:text-ink"
         >
           {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}

@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
+    "test": "node --experimental-strip-types --test lib/shot-sections.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

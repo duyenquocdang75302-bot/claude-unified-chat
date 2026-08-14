@@ -1,7 +1,6 @@
 "use client";
 
-import { memo, useMemo, useState } from "react";
-import { Check, Copy } from "lucide-react";
+import { memo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
@@ -9,24 +8,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { CodeBlock } from "@/components/chat/CodeBlock";
 import { ImageLightbox } from "@/components/attachments/ImageLightbox";
-import { splitShotSections } from "@/lib/shot-sections";
 import type { ImageAttachment } from "@/types/chat";
-
-async function copyText(text: string) {
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text);
-    return;
-  }
-  const textarea = document.createElement("textarea");
-  textarea.value = text;
-  textarea.style.position = "fixed";
-  textarea.style.opacity = "0";
-  document.body.appendChild(textarea);
-  textarea.select();
-  const copied = document.execCommand("copy");
-  textarea.remove();
-  if (!copied) throw new Error("copy failed");
-}
 
 function splitMarkdown(content: string, size = 9000) {
   if (content.length <= size) return [content];
@@ -58,41 +40,9 @@ const MarkdownChunk = memo(function MarkdownChunk({ content }: { content: string
   );
 });
 
-const ShotSection = memo(function ShotSection({ heading, content, copyContent }: { heading: string; content: string; copyContent: string }) {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = async (sectionContent: string) => {
-    try {
-      await copyText(sectionContent);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
-    } catch {
-      setCopied(false);
-    }
-  };
-
-  return (
-    <section className="group/shot relative my-4 rounded-xl border border-line bg-canvas/30 p-4 first:mt-2">
-      <div className="mb-4 flex min-h-8 items-center justify-between gap-3">
-        <h3 className="m-0 text-base font-semibold text-ink">{heading}</h3>
-        <button
-          type="button"
-          onClick={() => handleCopy(copyContent)}
-          aria-label={copied ? `已复制 ${heading}` : `复制 ${heading}`}
-          title={copied ? `已复制 ${heading}` : `复制 ${heading}`}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted transition hover:bg-muted/10 hover:text-ink"
-        >
-          {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
-        </button>
-      </div>
-      <MarkdownChunk content={content} />
-    </section>
-  );
-});
-
 export const MessageContent = memo(function MessageContent({ content, images = [], streaming = false }: { content: string; images?: ImageAttachment[]; streaming?: boolean }) {
   const [preview, setPreview] = useState<ImageAttachment | null>(null);
   const chunks = streaming ? [content] : splitMarkdown(content);
-  const shotSections = useMemo(() => (streaming ? null : splitShotSections(content)), [content, streaming]);
   return (
     <>
       {images.length ? <div className="mb-3 flex flex-wrap gap-2">{images.map((image) => (
@@ -101,9 +51,7 @@ export const MessageContent = memo(function MessageContent({ content, images = [
         </button>
       ))}</div> : null}
       <div className="markdown-body">
-        {shotSections
-          ? <>{shotSections.prefix ? <MarkdownChunk content={shotSections.prefix} /> : null}{shotSections.sections.map((shot, index) => <ShotSection key={`${index}-${shot.heading}`} heading={shot.heading} content={shot.content} copyContent={shot.copyContent} />)}</>
-          : chunks.map((chunk, index) => <MarkdownChunk key={`${index}-${chunk.length}`} content={chunk} />)}
+        {chunks.map((chunk, index) => <MarkdownChunk key={`${index}-${chunk.length}`} content={chunk} />)}
         {streaming ? <span className="stream-cursor" /> : null}
       </div>
       {preview ? <ImageLightbox src={preview.dataUrl} alt={preview.name} onClose={() => setPreview(null)} /> : null}

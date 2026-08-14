@@ -71,6 +71,12 @@ type ChatContextValue = {
 const ChatContext = createContext<ChatContextValue | null>(null);
 
 const AUTO_TITLE_PLACEHOLDERS = new Set(["新对话", "图片对话"]);
+const MAX_AUTO_CONTINUATIONS = 3;
+const AUTO_CONTINUATION_PROMPT = [
+  "继续完成上一条回复。",
+  "必须从刚才中断的位置直接续写，不要重复任何已经输出的标题、段落或句子。",
+  "只输出尚未完成的剩余内容，并完整完成用户最初要求。",
+].join("\n");
 
 function firstLineTitle(content: string) {
   const line = content
@@ -230,6 +236,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           (shouldAutoTitle(normalized.title) || normalized.title === legacyAutomaticTitle ? "auto" : "manual");
         return {
           ...normalized,
+          parameters: {
+            ...normalized.parameters,
+            maxTokens: normalized.parameters.maxTokens === 8192 ? 16384 : normalized.parameters.maxTokens,
+          },
           title: shouldAutoTitle(normalized.title) ? legacyAutomaticTitle : normalized.title,
           titleMode,
           titleGenerated: normalized.titleGenerated ?? false,
@@ -243,7 +253,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       const personalProjects = storedProjects.filter(
         (project) => !isSharedProjectId(project.id) && project.id !== seededLocalProjectId,
       );
-      const effectiveProjects = [...sharedProjects, ...personalProjects];
+      const effectiveProjects = [...sharedProjects, ...personalProjects].map((project) => ({
+        ...project,
+        parameters: {
+          ...project.parameters,
+          maxTokens: project.parameters.maxTokens === 8192 ? 16384 : project.parameters.maxTokens,
+        },
+      }));
       const validProjectId = effectiveProjects.some((project) => project.id === storedActiveProject)
         ? storedActiveProject
         : effectiveProjects[0]?.id ?? null;
@@ -437,22 +453,57 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
               : mergeProjectSystemPrompt(project, conversation.model, conversation.parameters.systemPrompt),
         },
       };
-      const response = await requestChat(requestConversation, baseMessages, controller.signal);
-      await consumeChatStream(response, {
-        onToken(token) {
-          responseText += token;
-          pending += token;
-          if (flushTimer === null) {
-            flushTimer = window.setTimeout(() => {
-              flushTimer = null;
-              flush();
-            }, 45);
-          }
-        },
-        onFinish(reason) {
-          finishReason = reason;
-        },
-      });
+      let requestMessages = baseMessages;
+      let autoContinuationCount = 0;
+      do {
+        finishReason = null;
+        const response = await requestChat(requestConversation, requestMessages, controller.signal);
+        const responseLengthBeforeRequest = responseText.length;
+        await consumeChatStream(response, {
+          onToken(token) {
+            responseText += token;
+            pending += token;
+            if (flushTimer === null) {
+              flushTimer = window.setTimeout(() => {
+                flushTimer = null;
+                flush();
+              }, 45);
+            }
+          },
+          onFinish(reason) {
+            finishReason = reason;
+          },
+        });
+
+        const canAutoContinue =
+          finishReason === "length" &&
+          !controller.signal.aborted &&
+          responseText.length > responseLengthBeforeRequest &&
+          autoContinuationCount < MAX_AUTO_CONTINUATIONS;
+        if (!canAutoContinue) break;
+
+        if (flushTimer !== null) {
+          window.clearTimeout(flushTimer);
+          flushTimer = null;
+        }
+        flush();
+        autoContinuationCount += 1;
+        const completedPart: ChatMessage = {
+          ...assistant,
+          content: responseText,
+          status: "complete",
+          finishReason: "length",
+        };
+        const continuationInstruction: ChatMessage = {
+          id: createId("internal"),
+          role: "user",
+          content: AUTO_CONTINUATION_PROMPT,
+          createdAt: Date.now(),
+          status: "complete",
+        };
+        // These two messages are request-only context. The UI keeps rendering one continuous AI reply.
+        requestMessages = [...baseMessages, completedPart, continuationInstruction];
+      } while (true);
       if (flushTimer !== null) window.clearTimeout(flushTimer);
       flush();
       const completedMessages: ChatMessage[] = [

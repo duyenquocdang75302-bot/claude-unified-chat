@@ -146,9 +146,10 @@ export function Sidebar({
               </button>
               {canManageProject(project) ? (
                 <button
-                  className="absolute right-2 top-1.5 rounded-lg p-1.5 text-muted opacity-0 hover:bg-panel hover:text-ink group-hover:opacity-100 group-focus-within:opacity-100"
+                  className="absolute right-2 top-1.5 rounded-lg p-1.5 text-muted transition hover:bg-panel hover:text-ink"
                   onClick={() => onManageProject(project)}
-                  aria-label={`设置统一项目 ${project.name}`}
+                  aria-label={`设置项目 ${project.name}`}
+                  title={`设置项目 ${project.name}`}
                 >
                   <Settings2 className="h-3.5 w-3.5" />
                 </button>

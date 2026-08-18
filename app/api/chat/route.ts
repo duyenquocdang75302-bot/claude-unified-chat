@@ -5,7 +5,7 @@ import { apiKeyForSession, sessionFromRequest } from "@/lib/server/auth";
 import { recordUsage } from "@/lib/server/usage";
 import { UpstreamTokenTracker } from "@/lib/server/token-tracker";
 import { getSharedProject } from "@/lib/server/shared-project";
-import { isSharedProjectId } from "@/lib/constants";
+import { isSharedProjectId, UPSTREAM_MAX_TOKENS_PER_REQUEST } from "@/lib/constants";
 import { mergeProjectSystemPrompt } from "@/lib/project-utils";
 
 export const runtime = "nodejs";
@@ -53,7 +53,10 @@ export async function POST(request: NextRequest) {
       model: body.model,
       messages,
       temperature: body.temperature,
-      max_tokens: body.max_tokens,
+      max_tokens: Math.min(
+        UPSTREAM_MAX_TOKENS_PER_REQUEST,
+        Math.max(1, Number.isFinite(body.max_tokens) ? Number(body.max_tokens) : UPSTREAM_MAX_TOKENS_PER_REQUEST),
+      ),
       stream: streaming,
     };
     if (streaming) requestBody.stream_options = { include_usage: true };
@@ -68,6 +71,7 @@ export async function POST(request: NextRequest) {
         cache: "no-store",
       });
 
+    const upstreamStartedAt = Date.now();
     let upstream = await sendUpstream();
     let upstreamErrorDetail = "";
     if (!upstream.ok) {
@@ -85,7 +89,16 @@ export async function POST(request: NextRequest) {
 
     if (!upstream.ok) {
       clearTimeout(timeout);
-      console.error("Upstream chat error", upstream.status, upstreamErrorDetail.slice(0, 500));
+      console.error("Upstream chat error", {
+        status: upstream.status,
+        durationMs: Date.now() - upstreamStartedAt,
+        model: body.model,
+        messageCount: messages.length,
+        requestBytes: Buffer.byteLength(JSON.stringify(requestBody)),
+        maxTokens: requestBody.max_tokens,
+        attempt: request.headers.get("x-chat-attempt") ?? "1",
+        detail: upstreamErrorDetail.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 240),
+      });
       return Response.json(
         { error: friendlyUpstreamError(upstream.status, upstreamErrorDetail) },
         { status: upstream.status },

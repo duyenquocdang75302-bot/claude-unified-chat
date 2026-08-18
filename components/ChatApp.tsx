@@ -148,14 +148,16 @@ export function ChatApp() {
           defaultParameters={defaultParameters}
           models={models}
           modelsLoading={loading}
+          readOnly={Boolean(editingProject && !canManageProject(editingProject))}
           onClose={() => setProjectDialog(null)}
           onSave={(draft) => {
+            if (editingProject && !canManageProject(editingProject)) return;
             if (editingProject) chat.updateProject(editingProject.id, draft);
             else chat.createProject(draft);
             setProjectDialog(null);
           }}
           onDelete={
-            editingProject
+            editingProject && canManageProject(editingProject)
               ? () => {
                   if (
                     window.confirm(
@@ -169,12 +171,12 @@ export function ChatApp() {
               : undefined
           }
           onAddKnowledge={
-            editingProject
+            editingProject && canManageProject(editingProject)
               ? (files) => chat.addProjectKnowledge(editingProject.id, files)
               : undefined
           }
           onRemoveKnowledge={
-            editingProject
+            editingProject && canManageProject(editingProject)
               ? (fileId) => chat.removeProjectKnowledge(editingProject.id, fileId)
               : undefined
           }

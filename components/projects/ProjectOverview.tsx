@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, FolderKanban, MessageSquarePlus, Settings2 } from "lucide-react";
+import { BookOpen, Eye, FolderKanban, MessageSquarePlus, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { isSharedProjectId } from "@/lib/constants";
 import type { ChatProject } from "@/types/chat";
@@ -47,14 +47,12 @@ export function ProjectOverview({
                 </p>
               </div>
             </div>
-            {canManage ? (
-              <Button variant="ghost" onClick={onManage}>
-                <Settings2 className="h-4 w-4" />
-                {isSharedProjectId(project.id) ? "管理员设置" : "项目设置"}
-              </Button>
-            ) : (
-              <span className="rounded-full border border-line px-3 py-1.5 text-xs text-muted">管理员统一维护</span>
-            )}
+            <Button variant="ghost" onClick={onManage}>
+              {canManage ? <Settings2 className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {canManage
+                ? isSharedProjectId(project.id) ? "管理员设置" : "项目设置"
+                : "查看项目内容"}
+            </Button>
           </div>
 
           <div className="mt-7 grid gap-3 sm:grid-cols-3">

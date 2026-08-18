@@ -25,6 +25,7 @@ export function ProjectDialog({
   defaultParameters,
   models,
   modelsLoading,
+  readOnly = false,
   onClose,
   onSave,
   onDelete,
@@ -36,6 +37,7 @@ export function ProjectDialog({
   defaultParameters: ChatParameters;
   models: ModelInfo[];
   modelsLoading: boolean;
+  readOnly?: boolean;
   onClose: () => void;
   onSave: (draft: ProjectDraft) => void;
   onDelete?: () => void;
@@ -95,7 +97,7 @@ export function ProjectDialog({
       <section
         role="dialog"
         aria-modal="true"
-        aria-label={project ? "项目设置" : "新建项目"}
+        aria-label={readOnly ? "查看项目" : project ? "项目设置" : "新建项目"}
         className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-line bg-panel shadow-soft"
       >
         <header className="flex items-center justify-between border-b border-line px-5 py-4 sm:px-6">
@@ -104,8 +106,10 @@ export function ProjectDialog({
               <FolderKanban className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="font-semibold text-ink">{project ? "项目设置" : "新建项目"}</h2>
-              <p className="text-xs text-muted">项目中的对话会共享指令和知识库</p>
+              <h2 className="font-semibold text-ink">{readOnly ? "查看项目内容" : project ? "项目设置" : "新建项目"}</h2>
+              <p className="text-xs text-muted">
+                {readOnly ? "统一项目由管理员维护，以下内容仅供查看" : "项目中的对话会共享指令和知识库"}
+              </p>
             </div>
           </div>
           <Button size="icon" variant="ghost" onClick={onClose} aria-label="关闭项目设置">
@@ -117,9 +121,10 @@ export function ProjectDialog({
           <label className="block text-sm text-ink">
             <span className="mb-2 block font-medium">项目名称</span>
             <input
-              autoFocus
+              autoFocus={!readOnly}
               value={name}
               maxLength={60}
+              readOnly={readOnly}
               onChange={(event) => setName(event.target.value)}
               className="h-10 w-full rounded-xl border border-line bg-canvas px-3 outline-none focus:border-accent"
               placeholder="例如：产品调研"
@@ -130,6 +135,7 @@ export function ProjectDialog({
             <input
               value={description}
               maxLength={500}
+              readOnly={readOnly}
               onChange={(event) => setDescription(event.target.value)}
               className="h-10 w-full rounded-xl border border-line bg-canvas px-3 outline-none focus:border-accent"
               placeholder="这个项目主要用来做什么？"
@@ -139,6 +145,7 @@ export function ProjectDialog({
             <span className="mb-2 block font-medium">项目指令</span>
             <textarea
               value={instructions}
+              readOnly={readOnly}
               onChange={(event) => setInstructions(event.target.value)}
               className="min-h-32 w-full resize-y rounded-xl border border-line bg-canvas p-3 outline-none focus:border-accent"
               placeholder="例如：回答时使用中文，优先参考知识库，结论后列出依据……"
@@ -146,26 +153,43 @@ export function ProjectDialog({
             <span className="mt-1 block text-xs text-muted">自动应用于此项目内的每一次对话。</span>
           </label>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block text-sm text-ink">
-              <span className="mb-2 block font-medium">默认模型</span>
-              <ModelSelector model={model} models={models} loading={modelsLoading} onChange={setModel} />
-            </label>
-            <label className="block text-sm text-ink">
-              <span className="mb-2 flex justify-between font-medium">
-                <span>Temperature</span><span className="text-muted">{parameters.temperature.toFixed(1)}</span>
-              </span>
-              <input
-                className="mt-2 w-full accent-[rgb(var(--accent))]"
-                type="range"
-                min="0"
-                max="2"
-                step="0.1"
-                value={parameters.temperature}
-                onChange={(event) => setParameters((current) => ({ ...current, temperature: Number(event.target.value) }))}
-              />
-            </label>
-          </div>
+          {readOnly ? (
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-line bg-canvas px-3 py-3">
+                <p className="text-xs text-muted">默认模型</p>
+                <p className="mt-1 break-all text-sm font-medium text-ink">{model}</p>
+              </div>
+              <div className="rounded-xl border border-line bg-canvas px-3 py-3">
+                <p className="text-xs text-muted">Temperature</p>
+                <p className="mt-1 text-sm font-medium text-ink">{parameters.temperature.toFixed(1)}</p>
+              </div>
+              <div className="rounded-xl border border-line bg-canvas px-3 py-3">
+                <p className="text-xs text-muted">最大输出 Tokens</p>
+                <p className="mt-1 text-sm font-medium text-ink">{parameters.maxTokens.toLocaleString()}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block text-sm text-ink">
+                <span className="mb-2 block font-medium">默认模型</span>
+                <ModelSelector model={model} models={models} loading={modelsLoading} onChange={setModel} />
+              </label>
+              <label className="block text-sm text-ink">
+                <span className="mb-2 flex justify-between font-medium">
+                  <span>Temperature</span><span className="text-muted">{parameters.temperature.toFixed(1)}</span>
+                </span>
+                <input
+                  className="mt-2 w-full accent-[rgb(var(--accent))]"
+                  type="range"
+                  min="0"
+                  max="2"
+                  step="0.1"
+                  value={parameters.temperature}
+                  onChange={(event) => setParameters((current) => ({ ...current, temperature: Number(event.target.value) }))}
+                />
+              </label>
+            </div>
+          )}
 
           {project ? (
             <div className="rounded-2xl border border-line bg-canvas/60 p-4">
@@ -176,18 +200,24 @@ export function ProjectDialog({
                     {project.knowledge.length} 个文件 · {knowledgeCharacters.toLocaleString()} 字符
                   </p>
                 </div>
-                <input
-                  ref={inputRef}
-                  type="file"
-                  multiple
-                  className="hidden"
-                  accept=".txt,.md,.pdf,.docx,.csv,.json,.js,.jsx,.ts,.tsx,.py,.java,.go,.rs,.rb,.php,.c,.cpp,.h,.hpp,.cs,.swift,.kt,.sh,.sql,.yaml,.yml,.xml,.html,.css"
-                  onChange={(event) => event.target.files && void uploadKnowledge(event.target.files)}
-                />
-                <Button size="sm" onClick={() => inputRef.current?.click()} disabled={parsing}>
-                  {parsing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
-                  {parsing ? "解析中" : "添加文件"}
-                </Button>
+                {readOnly ? (
+                  <span className="rounded-full border border-line px-2.5 py-1 text-[11px] text-muted">只读</span>
+                ) : (
+                  <>
+                    <input
+                      ref={inputRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      accept=".txt,.md,.pdf,.docx,.csv,.json,.js,.jsx,.ts,.tsx,.py,.java,.go,.rs,.rb,.php,.c,.cpp,.h,.hpp,.cs,.swift,.kt,.sh,.sql,.yaml,.yml,.xml,.html,.css"
+                      onChange={(event) => event.target.files && void uploadKnowledge(event.target.files)}
+                    />
+                    <Button size="sm" onClick={() => inputRef.current?.click()} disabled={parsing}>
+                      {parsing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+                      {parsing ? "解析中" : "添加文件"}
+                    </Button>
+                  </>
+                )}
               </div>
               <div className="space-y-2">
                 {project.knowledge.map((file) => (
@@ -199,14 +229,16 @@ export function ProjectDialog({
                         {formatBytes(file.size)} · {file.content.length.toLocaleString()} 字符{file.truncated ? " · 已截断" : ""}
                       </p>
                     </div>
-                    <Button
-                      size="icon"
-                      variant="danger"
-                      onClick={() => onRemoveKnowledge?.(file.id)}
-                      aria-label={`删除 ${file.name}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {!readOnly ? (
+                      <Button
+                        size="icon"
+                        variant="danger"
+                        onClick={() => onRemoveKnowledge?.(file.id)}
+                        aria-label={`删除 ${file.name}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    ) : null}
                   </div>
                 ))}
                 {!project.knowledge.length ? (
@@ -224,29 +256,35 @@ export function ProjectDialog({
         </div>
 
         <footer className="flex items-center justify-between border-t border-line px-5 py-4 sm:px-6">
-          <div>
-            {project && onDelete ? (
-              <Button variant="danger" onClick={onDelete}><Trash2 className="h-4 w-4" />删除项目</Button>
-            ) : null}
-          </div>
-          <div className="flex gap-2">
-            <Button variant="ghost" onClick={onClose}>取消</Button>
-            <Button
-              variant="primary"
-              disabled={!name.trim()}
-              onClick={() =>
-                onSave({
-                  name,
-                  description,
-                  instructions,
-                  defaultModel: model,
-                  parameters: { ...parameters, systemPrompt: parameters.systemPrompt || "" },
-                })
-              }
-            >
-              保存
-            </Button>
-          </div>
+          {readOnly ? (
+            <div className="ml-auto"><Button variant="primary" onClick={onClose}>关闭</Button></div>
+          ) : (
+            <>
+              <div>
+                {project && onDelete ? (
+                  <Button variant="danger" onClick={onDelete}><Trash2 className="h-4 w-4" />删除项目</Button>
+                ) : null}
+              </div>
+              <div className="flex gap-2">
+                <Button variant="ghost" onClick={onClose}>取消</Button>
+                <Button
+                  variant="primary"
+                  disabled={!name.trim()}
+                  onClick={() =>
+                    onSave({
+                      name,
+                      description,
+                      instructions,
+                      defaultModel: model,
+                      parameters: { ...parameters, systemPrompt: parameters.systemPrompt || "" },
+                    })
+                  }
+                >
+                  保存
+                </Button>
+              </div>
+            </>
+          )}
         </footer>
       </section>
     </div>

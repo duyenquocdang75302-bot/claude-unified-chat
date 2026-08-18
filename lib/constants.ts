@@ -30,6 +30,10 @@ export const MAX_IMAGE_DIMENSION = 1536; // 压缩后最大边长
 export const IMAGE_JPEG_QUALITY = 0.65; // JPEG 压缩质量
 export const MAX_TOTAL_IMAGE_SIZE = 2.5 * 1024 * 1024; // Base64 会额外膨胀约 33%
 export const MAX_CHAT_REQUEST_BYTES = 4 * 1024 * 1024; // 低于 Vercel 4.5MB 请求体上限
+// Keep each upstream stream comfortably below Vercel's 300-second function limit.
+// The UI automatically stitches multiple chunks into one continuous answer.
+export const UPSTREAM_MAX_TOKENS_PER_REQUEST = 4096;
+export const MAX_CONTINUATION_CONTEXT_CHARACTERS = 12_000;
 export const CLAUDE_DOCUMENT_LIMIT = 150_000;
 export const OTHER_DOCUMENT_LIMIT = 50_000;
 

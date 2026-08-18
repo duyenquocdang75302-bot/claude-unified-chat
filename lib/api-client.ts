@@ -1,6 +1,27 @@
 import type { ChatMessage, Conversation } from "@/types/chat";
 import { toUpstreamMessages } from "@/lib/message-utils";
-import { MAX_CHAT_REQUEST_BYTES } from "@/lib/constants";
+import { MAX_CHAT_REQUEST_BYTES, UPSTREAM_MAX_TOKENS_PER_REQUEST } from "@/lib/constants";
+
+const RETRYABLE_CHAT_STATUSES = new Set([502, 503, 504, 524]);
+const MAX_CHAT_RETRIES = 1;
+
+function waitForRetry(signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason ?? new DOMException("Aborted", "AbortError"));
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal.reason ?? new DOMException("Aborted", "AbortError"));
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, 800);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
 
 export async function requestChat(
   conversation: Conversation,
@@ -11,7 +32,7 @@ export async function requestChat(
     model: conversation.model,
     messages: toUpstreamMessages(messages),
     temperature: conversation.parameters.temperature,
-    max_tokens: conversation.parameters.maxTokens,
+    max_tokens: Math.min(conversation.parameters.maxTokens, UPSTREAM_MAX_TOKENS_PER_REQUEST),
     systemPrompt: conversation.parameters.systemPrompt,
     projectId: conversation.projectId ?? null,
     stream: true,
@@ -23,18 +44,30 @@ export async function requestChat(
     );
   }
 
-  const response = await fetch("/api/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: requestBody,
-    signal,
-  });
+  for (let attempt = 0; attempt <= MAX_CHAT_RETRIES; attempt += 1) {
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Chat-Attempt": String(attempt + 1),
+      },
+      body: requestBody,
+      signal,
+    });
 
-  if (!response.ok) {
+    if (response.ok) return response;
     const body = (await response.json().catch(() => null)) as { error?: string } | null;
+    const canRetry = RETRYABLE_CHAT_STATUSES.has(response.status) && attempt < MAX_CHAT_RETRIES && !signal.aborted;
+    if (canRetry) {
+      await waitForRetry(signal);
+      continue;
+    }
+    if (response.status === 524) {
+      throw new Error("中转站响应超时，已自动重试但仍未恢复；请稍后点击“重新生成”");
+    }
     throw new Error(body?.error || `请求失败（${response.status}）`);
   }
-  return response;
+  throw new Error("聊天请求失败，请重试");
 }
 
 function conversationTextForTitle(messages: ChatMessage[]) {

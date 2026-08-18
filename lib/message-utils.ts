@@ -1,5 +1,9 @@
 import type { ChatMessage } from "@/types/chat";
 
+// Old long answers are the least useful context and can make the upstream wait too
+// long before producing its first token. Project instructions are handled separately.
+const MAX_UPSTREAM_HISTORY_CHARACTERS = 60_000;
+
 export function messageTextWithDocuments(message: ChatMessage) {
   const blocks = [message.content.trim()];
   for (const file of message.documents ?? []) {
@@ -19,13 +23,44 @@ function messageTextWithAttachmentReferences(message: ChatMessage) {
   return blocks.filter(Boolean).join("\n\n");
 }
 
+function messageCharacterCost(message: ChatMessage) {
+  return message.content.length +
+    (message.documents?.reduce((sum, file) => sum + file.content.length, 0) ?? 0);
+}
+
+export function recentMessagesForUpstream(
+  messages: ChatMessage[],
+  maximumCharacters = MAX_UPSTREAM_HISTORY_CHARACTERS,
+) {
+  const candidates = messages.filter((message) => message.status !== "error");
+  if (!candidates.length) return [];
+
+  const selected: ChatMessage[] = [];
+  let remaining = maximumCharacters;
+  for (let index = candidates.length - 1; index >= 0; index -= 1) {
+    const message = candidates[index];
+    const cost = messageCharacterCost(message);
+    // The newest message is always required. Older oversized messages are skipped
+    // instead of pushing the current user request out of the context window.
+    if (!selected.length || cost <= remaining) {
+      selected.unshift(message);
+      remaining = Math.max(0, remaining - cost);
+    }
+  }
+
+  const firstUserIndex = selected.findIndex((message) => message.role === "user");
+  return firstUserIndex > 0 ? selected.slice(firstUserIndex) : selected;
+}
+
 export function toUpstreamMessages(messages: ChatMessage[]) {
-  const includedMessages = messages.filter((message) => message.status !== "error");
+  const includedMessages = recentMessagesForUpstream(messages);
   let latestAttachmentIndex = -1;
   for (let index = includedMessages.length - 1; index >= 0; index -= 1) {
     const message = includedMessages[index];
-    if (message.role === "user" && (message.images?.length || message.documents?.length)) {
-      latestAttachmentIndex = index;
+    if (message.role === "user") {
+      // Attachments belong only to the newest user turn. A later text follow-up or
+      // automatic continuation must not resend old base64 images/documents.
+      if (message.images?.length || message.documents?.length) latestAttachmentIndex = index;
       break;
     }
   }

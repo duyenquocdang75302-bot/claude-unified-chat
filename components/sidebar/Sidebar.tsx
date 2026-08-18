@@ -2,6 +2,7 @@
 
 import {
   Download,
+  Eye,
   Folder,
   FolderKanban,
   MessageSquare,
@@ -102,7 +103,7 @@ export function Sidebar({
           <MessagesSquare className="h-4 w-4 shrink-0" />
           <span>普通对话</span>
         </button>
-        <div className="max-h-56 overflow-y-auto">
+        <div>
           {!sharedProjects.length ? (
             <div className="mb-2 rounded-2xl border-2 border-dashed border-accent/35 bg-accent/5 px-3 py-3">
               <div className="flex items-center gap-2">
@@ -144,16 +145,18 @@ export function Sidebar({
                   <span className="shrink-0 rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">统一</span>
                 ) : null}
               </button>
-              {canManageProject(project) ? (
-                <button
-                  className="absolute right-2 top-1.5 rounded-lg p-1.5 text-muted transition hover:bg-panel hover:text-ink"
-                  onClick={() => onManageProject(project)}
-                  aria-label={`设置项目 ${project.name}`}
-                  title={`设置项目 ${project.name}`}
-                >
+              <button
+                className="absolute right-2 top-1.5 rounded-lg p-1.5 text-muted transition hover:bg-panel hover:text-ink"
+                onClick={() => onManageProject(project)}
+                aria-label={`${canManageProject(project) ? "设置" : "查看"}项目 ${project.name}`}
+                title={canManageProject(project) ? `设置项目 ${project.name}` : `查看项目内容 ${project.name}`}
+              >
+                {canManageProject(project) ? (
                   <Settings2 className="h-3.5 w-3.5" />
-                </button>
-              ) : null}
+                ) : (
+                  <Eye className="h-3.5 w-3.5" />
+                )}
+              </button>
             </div>
           ))}
         </div>

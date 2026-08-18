@@ -29,7 +29,13 @@ import { useSettings } from "@/contexts/SettingsContext";
 import { useToast } from "@/contexts/ToastContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { deleteSharedProject, fetchSharedProjects, saveSharedProject } from "@/lib/project-client";
-import { isSharedProjectId, MAX_TOTAL_IMAGE_SIZE, SHARED_PROJECT_ID } from "@/lib/constants";
+import {
+  isSharedProjectId,
+  MAX_CONTINUATION_CONTEXT_CHARACTERS,
+  MAX_TOTAL_IMAGE_SIZE,
+  SHARED_PROJECT_ID,
+  UPSTREAM_MAX_TOKENS_PER_REQUEST,
+} from "@/lib/constants";
 
 type ProjectDraft = {
   name: string;
@@ -455,6 +461,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       };
       let requestMessages = baseMessages;
       let autoContinuationCount = 0;
+      const allowedAutoContinuations = Math.min(
+        MAX_AUTO_CONTINUATIONS,
+        Math.max(0, Math.ceil(conversation.parameters.maxTokens / UPSTREAM_MAX_TOKENS_PER_REQUEST) - 1),
+      );
       do {
         finishReason = null;
         const response = await requestChat(requestConversation, requestMessages, controller.signal);
@@ -479,7 +489,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           finishReason === "length" &&
           !controller.signal.aborted &&
           responseText.length > responseLengthBeforeRequest &&
-          autoContinuationCount < MAX_AUTO_CONTINUATIONS;
+          autoContinuationCount < allowedAutoContinuations;
         if (!canAutoContinue) break;
 
         if (flushTimer !== null) {
@@ -490,7 +500,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         autoContinuationCount += 1;
         const completedPart: ChatMessage = {
           ...assistant,
-          content: responseText,
+          // Only the tail is needed for exact continuation. Sending the entire
+          // accumulated answer makes every later chunk progressively slower.
+          content: responseText.slice(-MAX_CONTINUATION_CONTEXT_CHARACTERS),
           status: "complete",
           finishReason: "length",
         };

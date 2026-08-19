@@ -1,11 +1,9 @@
 import type { ChatMessage, Conversation } from "@/types/chat";
 import { toUpstreamMessages } from "@/lib/message-utils";
 import { MAX_CHAT_REQUEST_BYTES, UPSTREAM_MAX_TOKENS_PER_REQUEST } from "@/lib/constants";
+import { chatRetryDelayMs, exhaustedChatError } from "@/lib/chat-request-policy";
 
-const RETRYABLE_CHAT_STATUSES = new Set([502, 503, 504, 524]);
-const MAX_CHAT_RETRIES = 1;
-
-function waitForRetry(signal: AbortSignal) {
+function waitForRetry(signal: AbortSignal, delayMs: number) {
   return new Promise<void>((resolve, reject) => {
     if (signal.aborted) {
       reject(signal.reason ?? new DOMException("Aborted", "AbortError"));
@@ -18,7 +16,7 @@ function waitForRetry(signal: AbortSignal) {
     const timer = setTimeout(() => {
       signal.removeEventListener("abort", onAbort);
       resolve();
-    }, 800);
+    }, delayMs);
     signal.addEventListener("abort", onAbort, { once: true });
   });
 }
@@ -44,7 +42,7 @@ export async function requestChat(
     );
   }
 
-  for (let attempt = 0; attempt <= MAX_CHAT_RETRIES; attempt += 1) {
+  for (let attempt = 0; ; attempt += 1) {
     const response = await fetch("/api/chat", {
       method: "POST",
       headers: {
@@ -57,17 +55,15 @@ export async function requestChat(
 
     if (response.ok) return response;
     const body = (await response.json().catch(() => null)) as { error?: string } | null;
-    const canRetry = RETRYABLE_CHAT_STATUSES.has(response.status) && attempt < MAX_CHAT_RETRIES && !signal.aborted;
-    if (canRetry) {
-      await waitForRetry(signal);
+    const retryDelayMs = chatRetryDelayMs(response.status, attempt);
+    if (retryDelayMs !== null && !signal.aborted) {
+      await waitForRetry(signal, retryDelayMs);
       continue;
     }
-    if (response.status === 524) {
-      throw new Error("中转站响应超时，已自动重试但仍未恢复；请稍后点击“重新生成”");
-    }
+    const exhaustedError = exhaustedChatError(response.status);
+    if (exhaustedError) throw new Error(exhaustedError);
     throw new Error(body?.error || `请求失败（${response.status}）`);
   }
-  throw new Error("聊天请求失败，请重试");
 }
 
 function conversationTextForTitle(messages: ChatMessage[]) {

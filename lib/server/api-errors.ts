@@ -11,6 +11,12 @@ export function friendlyUpstreamError(status: number, detail = "") {
   }
   if (status === 404) return "中转站未找到该模型，请重新选择模型";
   if (status === 413) return "请求内容过大，请减少图片或文件数量";
+  if (status === 424) {
+    if (/no account is available|no available account|account.*unavailable|无可用账号/.test(normalized)) {
+      return "当前模型渠道暂无可用账号，系统将自动重试";
+    }
+    return "当前模型渠道的依赖服务暂时失败，系统将自动重试";
+  }
   if (status === 524) return "中转站等待模型响应超时，系统将自动重试一次";
   if (status === 500 || status === 502 || status === 503 || status === 504) {
     return "中转站或模型渠道暂时不可用，请稍后重试";

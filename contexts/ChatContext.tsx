@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { requestChat, requestConversationTitle } from "@/lib/api-client";
-import { consumeChatStream } from "@/lib/chat-stream";
+import { consumeChatStream, isRecoverableChatStreamError } from "@/lib/chat-stream";
 import { documentCharacterLimit } from "@/lib/model-utils";
 import { mergeProjectSystemPrompt } from "@/lib/project-utils";
 import {
@@ -78,11 +78,30 @@ const ChatContext = createContext<ChatContextValue | null>(null);
 
 const AUTO_TITLE_PLACEHOLDERS = new Set(["新对话", "图片对话"]);
 const MAX_AUTO_CONTINUATIONS = 3;
+const MAX_STREAM_RECOVERIES = 2;
 const AUTO_CONTINUATION_PROMPT = [
   "继续完成上一条回复。",
   "必须从刚才中断的位置直接续写，不要重复任何已经输出的标题、段落或句子。",
   "只输出尚未完成的剩余内容，并完整完成用户最初要求。",
 ].join("\n");
+
+function waitForStreamRecovery(delayMs: number, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason ?? new DOMException("Aborted", "AbortError"));
+      return;
+    }
+    const onAbort = () => {
+      window.clearTimeout(timer);
+      reject(signal.reason ?? new DOMException("Aborted", "AbortError"));
+    };
+    const timer = window.setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, delayMs);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
 
 function firstLineTitle(content: string) {
   const line = content
@@ -461,43 +480,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       };
       let requestMessages = baseMessages;
       let autoContinuationCount = 0;
+      let streamRecoveryCount = 0;
       const allowedAutoContinuations = Math.min(
         MAX_AUTO_CONTINUATIONS,
         Math.max(0, Math.ceil(conversation.parameters.maxTokens / UPSTREAM_MAX_TOKENS_PER_REQUEST) - 1),
       );
-      do {
-        finishReason = null;
-        const response = await requestChat(requestConversation, requestMessages, controller.signal);
-        const responseLengthBeforeRequest = responseText.length;
-        await consumeChatStream(response, {
-          onToken(token) {
-            responseText += token;
-            pending += token;
-            if (flushTimer === null) {
-              flushTimer = window.setTimeout(() => {
-                flushTimer = null;
-                flush();
-              }, 45);
-            }
-          },
-          onFinish(reason) {
-            finishReason = reason;
-          },
-        });
-
-        const canAutoContinue =
-          finishReason === "length" &&
-          !controller.signal.aborted &&
-          responseText.length > responseLengthBeforeRequest &&
-          autoContinuationCount < allowedAutoContinuations;
-        if (!canAutoContinue) break;
-
-        if (flushTimer !== null) {
-          window.clearTimeout(flushTimer);
-          flushTimer = null;
-        }
-        flush();
-        autoContinuationCount += 1;
+      const continuationMessages = () => {
         const completedPart: ChatMessage = {
           ...assistant,
           // Only the tail is needed for exact continuation. Sending the entire
@@ -513,8 +501,64 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           createdAt: Date.now(),
           status: "complete",
         };
+        return [...baseMessages, completedPart, continuationInstruction];
+      };
+      do {
+        finishReason = null;
+        const response = await requestChat(requestConversation, requestMessages, controller.signal);
+        const responseLengthBeforeRequest = responseText.length;
+        try {
+          await consumeChatStream(response, {
+            onToken(token) {
+              responseText += token;
+              pending += token;
+              if (flushTimer === null) {
+                flushTimer = window.setTimeout(() => {
+                  flushTimer = null;
+                  flush();
+                }, 45);
+              }
+            },
+            onFinish(reason) {
+              finishReason = reason;
+            },
+          });
+          streamRecoveryCount = 0;
+        } catch (error) {
+          const recoverable = isRecoverableChatStreamError(error) && !controller.signal.aborted;
+          if (recoverable && streamRecoveryCount < MAX_STREAM_RECOVERIES) {
+            if (flushTimer !== null) {
+              window.clearTimeout(flushTimer);
+              flushTimer = null;
+            }
+            flush();
+            streamRecoveryCount += 1;
+            if (responseText) requestMessages = continuationMessages();
+            await waitForStreamRecovery(700 * streamRecoveryCount, controller.signal);
+            continue;
+          }
+          if (recoverable && responseText) {
+            finishReason = "interrupted";
+            break;
+          }
+          throw error;
+        }
+
+        const canAutoContinue =
+          finishReason === "length" &&
+          !controller.signal.aborted &&
+          responseText.length > responseLengthBeforeRequest &&
+          autoContinuationCount < allowedAutoContinuations;
+        if (!canAutoContinue) break;
+
+        if (flushTimer !== null) {
+          window.clearTimeout(flushTimer);
+          flushTimer = null;
+        }
+        flush();
+        autoContinuationCount += 1;
         // These two messages are request-only context. The UI keeps rendering one continuous AI reply.
-        requestMessages = [...baseMessages, completedPart, continuationInstruction];
+        requestMessages = continuationMessages();
       } while (true);
       if (flushTimer !== null) window.clearTimeout(flushTimer);
       flush();
@@ -634,7 +678,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     const conversation = conversationsRef.current.find((item) => item.id === activeId);
     if (!conversation) return;
     const index = conversation.messages.findIndex(
-      (message) => message.id === messageId && message.role === "assistant" && message.finishReason === "length",
+      (message) =>
+        message.id === messageId &&
+        message.role === "assistant" &&
+        (message.finishReason === "length" || message.finishReason === "interrupted"),
     );
     if (index < 0) return;
     const continuation: ChatMessage = {

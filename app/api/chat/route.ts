@@ -115,6 +115,7 @@ export async function POST(request: NextRequest) {
     const reader = upstream.body.getReader();
     const encoder = new TextEncoder();
     const tokenTracker = new UpstreamTokenTracker(messages);
+    let streamedBytes = 0;
     let usageRecorded = false;
     const saveUsage = async () => {
       if (usageRecorded) return;
@@ -143,17 +144,42 @@ export async function POST(request: NextRequest) {
             streamController.close();
           } else if (value) {
             resetStreamTimeout();
+            streamedBytes += value.byteLength;
             tokenTracker.push(value, streaming);
             streamController.enqueue(value);
           }
         } catch (error) {
           clearTimeout(timeout);
           request.signal.removeEventListener("abort", onClientAbort);
+          await saveUsage();
           if (controller.signal.reason !== "client-aborted" && controller.signal.reason !== "response-cancelled") {
-            const message = controller.signal.reason === "timeout" ? "请求超时，请重试" : "上游连接中断，请重试";
-            streamController.enqueue(encoder.encode(`data: ${JSON.stringify({ error: message })}\n\n`));
+            const timedOut = controller.signal.reason === "timeout";
+            const message = timedOut ? "请求超时，系统将自动续接" : "上游连接中断，系统将自动续接";
+            console.error("Upstream stream interrupted", {
+              model: body.model,
+              attempt: request.headers.get("x-chat-attempt") ?? "1",
+              streamedBytes,
+              reason: error instanceof Error ? error.message.slice(0, 240) : String(error).slice(0, 240),
+              timeout: timedOut,
+            });
+            try {
+              streamController.enqueue(encoder.encode(`data: ${JSON.stringify({
+                error: {
+                  message,
+                  code: timedOut ? "UPSTREAM_STREAM_TIMEOUT" : "UPSTREAM_STREAM_INTERRUPTED",
+                  retryable: true,
+                },
+              })}\n\n`));
+            } catch {
+              // The browser connection may already be gone; the client also
+              // recognizes an abruptly closed response as recoverable.
+            }
           }
-          streamController.close();
+          try {
+            streamController.close();
+          } catch {
+            // Already closed by the runtime or the browser.
+          }
         }
       },
       cancel() {

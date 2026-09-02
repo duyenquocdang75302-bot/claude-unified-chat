@@ -37,6 +37,7 @@ export const ChatMessage = memo(function ChatMessage({ message, generating, onEd
   const [copied, setCopied] = useState(false);
   const { notify } = useToast();
   const isUser = message.role === "user";
+  const canContinue = message.finishReason === "length" || message.finishReason === "interrupted";
   const handleCopy = async () => {
     try {
       await copyToClipboard(message.content);
@@ -64,9 +65,9 @@ export const ChatMessage = memo(function ChatMessage({ message, generating, onEd
         )}
         {message.documents?.length ? <div className="mt-3 flex flex-wrap gap-2">{message.documents.map((file) => <span key={file.id} className="rounded-lg border border-line bg-panel px-2 py-1 text-[11px] text-muted">📄 {file.name}{file.truncated ? "（已截断）" : ""}</span>)}</div> : null}
         {message.error ? <p className="mt-3 text-sm text-red-500">{message.error}</p> : null}
-        {message.finishReason === "length" ? (
+        {canContinue ? (
           <div className="mt-4 flex flex-col gap-3 rounded-xl border border-amber-300/70 bg-amber-50/70 p-3 text-sm text-amber-800 dark:border-amber-700/70 dark:bg-amber-950/25 dark:text-amber-300 sm:flex-row sm:items-center sm:justify-between">
-            <span>输出已达到最大 Tokens 限制，剩余内容尚未生成。</span>
+            <span>{message.finishReason === "interrupted" ? "连接多次中断，已保留当前内容，可继续生成剩余部分。" : "内容特别长，自动续写多轮后仍未完成，可继续生成剩余内容。"}</span>
             <Button size="sm" variant="primary" onClick={onContinue} disabled={generating} className="w-full sm:w-auto">
               <RefreshCw className="h-3.5 w-3.5" />
               {generating ? "正在继续…" : "继续生成剩余内容"}
@@ -81,7 +82,7 @@ export const ChatMessage = memo(function ChatMessage({ message, generating, onEd
               <Button size="sm" variant="danger" onClick={onDelete} disabled={generating}><Trash2 className="h-3.5 w-3.5" />删除</Button>
             </div>
             <div className="flex items-center gap-1">
-              {!isUser && message.finishReason === "length" ? (
+              {!isUser && canContinue ? (
                 <Button size="sm" variant="secondary" onClick={onContinue} disabled={generating}>
                   <RefreshCw className="h-3.5 w-3.5" />继续生成
                 </Button>

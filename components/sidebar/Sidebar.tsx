@@ -5,6 +5,7 @@ import {
   Eye,
   Folder,
   FolderKanban,
+  FolderPlus,
   MessageSquare,
   MessagesSquare,
   MoreHorizontal,
@@ -30,15 +31,15 @@ export function Sidebar({
   activeProjectId,
   onClose,
   onCreate,
-  onCreateProject,
+  onCreatePersonalProject,
+  onCreateSharedProject,
   onSelectProject,
   onManageProject,
   onSelect,
   onRename,
   onDelete,
-  canCreateProjects,
   canManageProject,
-  canManageSharedProject,
+  canCreateSharedProject,
 }: {
   open: boolean;
   projects: ChatProject[];
@@ -47,15 +48,15 @@ export function Sidebar({
   activeProjectId: string | null;
   onClose: () => void;
   onCreate: () => void;
-  onCreateProject: () => void;
+  onCreatePersonalProject: () => void;
+  onCreateSharedProject: () => void;
   onSelectProject: (id: string | null) => void;
   onManageProject: (project: ChatProject) => void;
   onSelect: (id: string) => void;
   onRename: (id: string, title: string) => void;
   onDelete: (id: string) => void;
-  canCreateProjects: boolean;
   canManageProject: (project: ChatProject) => boolean;
-  canManageSharedProject: boolean;
+  canCreateSharedProject: boolean;
 }) {
   const [menuId, setMenuId] = useState<string | null>(null);
   const activeProject = projects.find((project) => project.id === activeProjectId);
@@ -81,14 +82,29 @@ export function Sidebar({
       <div className="border-b border-line px-2 pb-3">
         <div className="flex items-center justify-between px-2 pb-1">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">项目</p>
-          {canCreateProjects ? (
-            <button
-              className="rounded-lg p-1.5 text-muted hover:bg-muted/10 hover:text-ink"
-              onClick={onCreateProject}
-              aria-label="新建统一项目"
+        </div>
+        <div className="mb-2 space-y-1.5 px-1">
+          <Button
+            size="sm"
+            variant="secondary"
+            className="w-full justify-start"
+            onClick={onCreatePersonalProject}
+          >
+            <FolderPlus className="h-4 w-4 text-accent" />
+            建立我的 Project
+            <span className="ml-auto text-[10px] font-normal text-muted">仅自己</span>
+          </Button>
+          {canCreateSharedProject ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              className="w-full justify-start"
+              onClick={onCreateSharedProject}
             >
-              <Plus className="h-4 w-4" />
-            </button>
+              <ShieldCheck className="h-4 w-4 text-accent" />
+              建立统一 Project
+              <span className="ml-auto text-[10px] font-normal text-muted">所有人</span>
+            </Button>
           ) : null}
         </div>
         <button
@@ -111,7 +127,7 @@ export function Sidebar({
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-ink">统一 Project</p>
                   <p className="text-[11px] text-muted">
-                    {canManageSharedProject ? "尚未创建，点击右上角 + 创建" : "等待管理员创建"}
+                    {canCreateSharedProject ? "尚未创建，可点击上方按钮建立" : "等待管理员创建"}
                   </p>
                 </div>
               </div>
@@ -141,9 +157,9 @@ export function Sidebar({
                   <Folder className="h-4 w-4 shrink-0" />
                 )}
                 <span className="min-w-0 flex-1 truncate">{project.name}</span>
-                {isSharedProjectId(project.id) ? (
-                  <span className="shrink-0 rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">统一</span>
-                ) : null}
+                <span className="shrink-0 rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">
+                  {isSharedProjectId(project.id) ? "统一" : "我的"}
+                </span>
               </button>
               <button
                 className="absolute right-2 top-1.5 rounded-lg p-1.5 text-muted transition hover:bg-panel hover:text-ink"

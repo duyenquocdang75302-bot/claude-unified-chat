@@ -10,6 +10,7 @@ import type { ParseResponse } from "@/types/api";
 import type { ChatParameters, ChatProject, DocumentAttachment } from "@/types/chat";
 import type { ModelInfo } from "@/types/model";
 import { useToast } from "@/contexts/ToastContext";
+import type { ProjectScope } from "@/lib/project-scope";
 
 type ProjectDraft = {
   name: string;
@@ -21,6 +22,7 @@ type ProjectDraft = {
 
 export function ProjectDialog({
   project,
+  scope,
   defaultModel,
   defaultParameters,
   models,
@@ -33,6 +35,7 @@ export function ProjectDialog({
   onRemoveKnowledge,
 }: {
   project: ChatProject | null;
+  scope: ProjectScope;
   defaultModel: string;
   defaultParameters: ChatParameters;
   models: ModelInfo[];
@@ -52,6 +55,13 @@ export function ProjectDialog({
   const [parsing, setParsing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const { notify } = useToast();
+  const projectTypeName = scope === "shared" ? "统一 Project" : "我的 Project";
+  const dialogTitle = readOnly ? "查看项目内容" : project ? `${projectTypeName} 设置` : `建立${projectTypeName}`;
+  const dialogDescription = readOnly
+    ? "统一 Project 由管理员维护，所有账号可查看"
+    : scope === "shared"
+      ? "所有账号可查看，仅管理员可以维护"
+      : "仅当前账号在此浏览器中可见，由自己管理";
 
   const uploadKnowledge = async (files: FileList) => {
     if (!project || !onAddKnowledge) return;
@@ -97,7 +107,7 @@ export function ProjectDialog({
       <section
         role="dialog"
         aria-modal="true"
-        aria-label={readOnly ? "查看项目" : project ? "项目设置" : "新建项目"}
+        aria-label={dialogTitle}
         className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-line bg-panel shadow-soft"
       >
         <header className="flex items-center justify-between border-b border-line px-5 py-4 sm:px-6">
@@ -106,10 +116,8 @@ export function ProjectDialog({
               <FolderKanban className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="font-semibold text-ink">{readOnly ? "查看项目内容" : project ? "项目设置" : "新建项目"}</h2>
-              <p className="text-xs text-muted">
-                {readOnly ? "统一项目由管理员维护，以下内容仅供查看" : "项目中的对话会共享指令和知识库"}
-              </p>
+              <h2 className="font-semibold text-ink">{dialogTitle}</h2>
+              <p className="text-xs text-muted">{dialogDescription}</p>
             </div>
           </div>
           <Button size="icon" variant="ghost" onClick={onClose} aria-label="关闭项目设置">

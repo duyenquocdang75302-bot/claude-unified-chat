@@ -29,6 +29,7 @@ import { useSettings } from "@/contexts/SettingsContext";
 import { useToast } from "@/contexts/ToastContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { deleteSharedProject, fetchSharedProjects, saveSharedProject } from "@/lib/project-client";
+import { canCreateProjectScope, projectIdForScope, type ProjectScope } from "@/lib/project-scope";
 import {
   isSharedProjectId,
   MAX_CONTINUATION_CONTEXT_CHARACTERS,
@@ -60,7 +61,7 @@ type ChatContextValue = {
   deleteConversation: (id: string) => void;
   renameConversation: (id: string, title: string) => void;
   updateConversation: (id: string, patch: Partial<Pick<Conversation, "model" | "parameters">>) => void;
-  createProject: (draft: ProjectDraft) => string;
+  createProject: (draft: ProjectDraft, scope: ProjectScope) => string | null;
   updateProject: (id: string, patch: Partial<Omit<ChatProject, "id" | "createdAt">>) => void;
   deleteProject: (id: string) => void;
   selectProject: (id: string | null) => void;
@@ -386,11 +387,16 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     return conversation.id;
   }, [activeProjectId, settings]);
 
-  const createProject = useCallback((draft: ProjectDraft) => {
+  const createProject = useCallback((draft: ProjectDraft, scope: ProjectScope) => {
+    if (!canCreateProjectScope(scope, isAdmin)) {
+      notify("只有管理员可以建立统一 Project", "error");
+      return null;
+    }
     const now = Date.now();
-    const makeSharedProject = isAdmin;
+    const makeSharedProject = scope === "shared";
+    const baseId = createId("project");
     const project: ChatProject = {
-      id: makeSharedProject ? `shared:${createId("project")}` : createId("project"),
+      id: projectIdForScope(scope, baseId),
       name: draft.name.trim().slice(0, 60) || "未命名项目",
       description: draft.description.trim().slice(0, 500),
       instructions: draft.instructions.trim(),
@@ -409,7 +415,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setActiveProjectId(project.id);
     setActiveId(null);
     return project.id;
-  }, [isAdmin, persistSharedProject]);
+  }, [isAdmin, notify, persistSharedProject]);
 
   const deleteProject = useCallback((id: string) => {
     if (isSharedProjectId(id) && !isAdmin) {

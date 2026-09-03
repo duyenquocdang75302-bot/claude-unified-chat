@@ -13,17 +13,17 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useModels } from "@/hooks/useModels";
 import { isSharedProjectId } from "@/lib/constants";
+import type { ProjectScope } from "@/lib/project-scope";
 
 export function ChatApp() {
   const chat = useChat();
   const { user } = useAuth();
   const canManageProjects = user?.role === "admin";
-  const canCreateProjects = true;
   const canManageProject = (project: { id: string }) => canManageProjects || !isSharedProjectId(project.id);
   const { settings } = useSettings();
   const { models, loading } = useModels();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [projectDialog, setProjectDialog] = useState<"new" | string | null>(null);
+  const [projectDialog, setProjectDialog] = useState<"new-personal" | "new-shared" | string | null>(null);
   const defaultParameters = useMemo(
     () => ({
       temperature: settings.temperature,
@@ -42,8 +42,10 @@ export function ChatApp() {
   }
 
   const conversation = chat.activeConversation;
+  const creatingProjectScope: ProjectScope | null =
+    projectDialog === "new-shared" ? "shared" : projectDialog === "new-personal" ? "personal" : null;
   const editingProject =
-    projectDialog && projectDialog !== "new"
+    projectDialog && !creatingProjectScope
       ? chat.projects.find((project) => project.id === projectDialog) ?? null
       : null;
 
@@ -60,15 +62,15 @@ export function ChatApp() {
           chat.createConversation();
           setSidebarOpen(false);
         }}
-        onCreateProject={() => setProjectDialog("new")}
+        onCreatePersonalProject={() => setProjectDialog("new-personal")}
+        onCreateSharedProject={() => setProjectDialog("new-shared")}
         onSelectProject={chat.selectProject}
         onManageProject={(project) => setProjectDialog(project.id)}
         onSelect={chat.selectConversation}
         onRename={chat.renameConversation}
         onDelete={chat.deleteConversation}
-        canCreateProjects
         canManageProject={canManageProject}
-        canManageSharedProject={canManageProjects}
+        canCreateSharedProject={canManageProjects}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -144,6 +146,7 @@ export function ChatApp() {
         <ProjectDialog
           key={projectDialog}
           project={editingProject}
+          scope={creatingProjectScope ?? (editingProject && isSharedProjectId(editingProject.id) ? "shared" : "personal")}
           defaultModel={settings.defaultModel}
           defaultParameters={defaultParameters}
           models={models}
@@ -153,7 +156,7 @@ export function ChatApp() {
           onSave={(draft) => {
             if (editingProject && !canManageProject(editingProject)) return;
             if (editingProject) chat.updateProject(editingProject.id, draft);
-            else chat.createProject(draft);
+            else if (creatingProjectScope && !chat.createProject(draft, creatingProjectScope)) return;
             setProjectDialog(null);
           }}
           onDelete={

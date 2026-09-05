@@ -3,6 +3,7 @@
 import { BookOpen, Eye, FolderKanban, MessageSquarePlus, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { isSharedProjectId } from "@/lib/constants";
+import { formatProjectUpdatedAt } from "@/lib/project-time";
 import type { ChatProject } from "@/types/chat";
 
 export function ProjectOverview({
@@ -44,6 +45,9 @@ export function ProjectOverview({
                 <h1 className="truncate text-2xl font-semibold tracking-tight text-ink">{project.name}</h1>
                 <p className="mt-2 text-sm leading-6 text-muted">
                   {project.description || "这个项目还没有描述。"}
+                </p>
+                <p className="mt-2 text-xs text-muted">
+                  最后修改：{formatProjectUpdatedAt(project.updatedAt)}
                 </p>
               </div>
             </div>

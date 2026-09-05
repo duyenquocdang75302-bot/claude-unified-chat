@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { FileText, FolderKanban, LoaderCircle, Paperclip, Trash2, X } from "lucide-react";
+import { FileDown, FileText, FolderKanban, LoaderCircle, Paperclip, Trash2, X } from "lucide-react";
 import { ModelSelector } from "@/components/models/ModelSelector";
 import { Button } from "@/components/ui/Button";
 import { validateDocument } from "@/lib/attachment-utils";
@@ -11,6 +11,7 @@ import type { ChatParameters, ChatProject, DocumentAttachment } from "@/types/ch
 import type { ModelInfo } from "@/types/model";
 import { useToast } from "@/contexts/ToastContext";
 import type { ProjectScope } from "@/lib/project-scope";
+import { isMarkdownFileName, MARKDOWN_FILE_ACCEPT } from "@/lib/project-knowledge";
 
 type ProjectDraft = {
   name: string;
@@ -53,7 +54,10 @@ export function ProjectDialog({
   const [model, setModel] = useState(project?.defaultModel ?? defaultModel);
   const [parameters, setParameters] = useState(project?.parameters ?? defaultParameters);
   const [parsing, setParsing] = useState(false);
+  const [importingInstructions, setImportingInstructions] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const markdownInputRef = useRef<HTMLInputElement>(null);
+  const instructionsMarkdownInputRef = useRef<HTMLInputElement>(null);
   const { notify } = useToast();
   const projectTypeName = scope === "shared" ? "统一 Project" : "我的 Project";
   const dialogTitle = readOnly ? "查看项目内容" : project ? `${projectTypeName} 设置` : `建立${projectTypeName}`;
@@ -63,10 +67,32 @@ export function ProjectDialog({
       ? "所有账号可查看，仅管理员可以维护"
       : "仅当前账号在此浏览器中可见，由自己管理";
 
-  const uploadKnowledge = async (files: FileList) => {
+  const importMarkdownInstructions = async (file: File) => {
+    try {
+      if (!isMarkdownFileName(file.name)) throw new Error("请选择 .md 或 .markdown 文件");
+      validateDocument(file);
+      if (instructions.trim() && !window.confirm("导入 Markdown 会覆盖当前项目指令，是否继续？")) return;
+      setImportingInstructions(true);
+      const content = await file.text();
+      if (!content.trim()) throw new Error("Markdown 文件内容为空");
+      setInstructions(content);
+      notify("Markdown 已导入项目指令", "success");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Markdown 导入失败", "error");
+    } finally {
+      setImportingInstructions(false);
+      if (instructionsMarkdownInputRef.current) instructionsMarkdownInputRef.current.value = "";
+    }
+  };
+
+  const uploadKnowledge = async (files: FileList, mode: "all" | "markdown" = "all") => {
     if (!project || !onAddKnowledge) return;
     const selected = Array.from(files);
     if (!selected.length) return;
+    if (mode === "markdown" && selected.some((file) => !isMarkdownFileName(file.name))) {
+      notify("请选择 .md 或 .markdown 文件", "error");
+      return;
+    }
     if (selected.length > 5) {
       notify("每次最多上传 5 个知识文件", "error");
       return;
@@ -91,12 +117,13 @@ export function ProjectDialog({
         })),
       );
       if (body?.truncated) notify(`知识内容超过 ${body.limit.toLocaleString()} 字符，已自动截断`);
-      else notify("知识文件已加入项目", "success");
+      else notify(mode === "markdown" ? "Markdown 已导入项目" : "知识文件已加入项目", "success");
     } catch (error) {
       notify(error instanceof Error ? error.message : "知识文件解析失败", "error");
     } finally {
       setParsing(false);
       if (inputRef.current) inputRef.current.value = "";
+      if (markdownInputRef.current) markdownInputRef.current.value = "";
     }
   };
 
@@ -149,17 +176,44 @@ export function ProjectDialog({
               placeholder="这个项目主要用来做什么？"
             />
           </label>
-          <label className="block text-sm text-ink">
+          <div className="block text-sm text-ink">
             <span className="mb-2 block font-medium">项目指令</span>
-            <textarea
-              value={instructions}
-              readOnly={readOnly}
-              onChange={(event) => setInstructions(event.target.value)}
-              className="min-h-32 w-full resize-y rounded-xl border border-line bg-canvas p-3 outline-none focus:border-accent"
-              placeholder="例如：回答时使用中文，优先参考知识库，结论后列出依据……"
-            />
+            <div className="relative">
+              <textarea
+                aria-label="项目指令"
+                value={instructions}
+                readOnly={readOnly}
+                onChange={(event) => setInstructions(event.target.value)}
+                className={`min-h-32 w-full resize-y rounded-xl border border-line bg-canvas p-3 outline-none focus:border-accent ${readOnly ? "" : "pt-12"}`}
+                placeholder="例如：回答时使用中文，优先参考知识库，结论后列出依据……"
+              />
+              {!readOnly ? (
+                <>
+                  <input
+                    ref={instructionsMarkdownInputRef}
+                    type="file"
+                    className="hidden"
+                    accept={MARKDOWN_FILE_ACCEPT}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) void importMarkdownInstructions(file);
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="absolute right-3 top-3 bg-panel/90 shadow-sm"
+                    onClick={() => instructionsMarkdownInputRef.current?.click()}
+                    disabled={importingInstructions}
+                  >
+                    {importingInstructions ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+                    {importingInstructions ? "导入中" : "导入 Markdown"}
+                  </Button>
+                </>
+              ) : null}
+            </div>
             <span className="mt-1 block text-xs text-muted">自动应用于此项目内的每一次对话。</span>
-          </label>
+          </div>
 
           {readOnly ? (
             <div className="grid gap-3 sm:grid-cols-3">
@@ -202,29 +256,42 @@ export function ProjectDialog({
           {project ? (
             <div className="rounded-2xl border border-line bg-canvas/60 p-4">
               <div className="mb-3 flex items-center justify-between gap-3">
-                <div>
+                <div className="min-w-0">
                   <h3 className="text-sm font-semibold text-ink">项目知识库</h3>
                   <p className="text-xs text-muted">
                     {project.knowledge.length} 个文件 · {knowledgeCharacters.toLocaleString()} 字符
                   </p>
+                  {!readOnly ? <p className="mt-1 text-[11px] text-muted">支持 .md / .markdown，可一次导入多个</p> : null}
                 </div>
                 {readOnly ? (
                   <span className="rounded-full border border-line px-2.5 py-1 text-[11px] text-muted">只读</span>
                 ) : (
-                  <>
+                  <div className="flex shrink-0 flex-wrap justify-end gap-2">
                     <input
                       ref={inputRef}
                       type="file"
                       multiple
                       className="hidden"
-                      accept=".txt,.md,.pdf,.docx,.csv,.json,.js,.jsx,.ts,.tsx,.py,.java,.go,.rs,.rb,.php,.c,.cpp,.h,.hpp,.cs,.swift,.kt,.sh,.sql,.yaml,.yml,.xml,.html,.css"
+                      accept=".txt,.md,.markdown,.pdf,.docx,.csv,.json,.js,.jsx,.ts,.tsx,.py,.java,.go,.rs,.rb,.php,.c,.cpp,.h,.hpp,.cs,.swift,.kt,.sh,.sql,.yaml,.yml,.xml,.html,.css"
                       onChange={(event) => event.target.files && void uploadKnowledge(event.target.files)}
                     />
+                    <input
+                      ref={markdownInputRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      accept={MARKDOWN_FILE_ACCEPT}
+                      onChange={(event) => event.target.files && void uploadKnowledge(event.target.files, "markdown")}
+                    />
+                    <Button size="sm" variant="ghost" onClick={() => markdownInputRef.current?.click()} disabled={parsing}>
+                      <FileDown className="h-4 w-4" />
+                      导入 Markdown
+                    </Button>
                     <Button size="sm" onClick={() => inputRef.current?.click()} disabled={parsing}>
                       {parsing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
                       {parsing ? "解析中" : "添加文件"}
                     </Button>
-                  </>
+                  </div>
                 )}
               </div>
               <div className="space-y-2">

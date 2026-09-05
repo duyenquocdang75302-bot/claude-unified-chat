@@ -158,13 +158,15 @@ export function Sidebar({
                   <Folder className="h-4 w-4 shrink-0" />
                 )}
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate">{project.name}</span>
-                  <span className="mt-0.5 block truncate text-[11px] leading-4 text-muted/80">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate">{project.name}</span>
+                    <span className="shrink-0 rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">
+                      {isSharedProjectId(project.id) ? "统一" : "我的"}
+                    </span>
+                  </span>
+                  <span className="mt-0.5 block whitespace-nowrap text-[11px] leading-4 text-muted/80">
                     最后修改：{formatProjectUpdatedAt(project.updatedAt)}
                   </span>
-                </span>
-                <span className="shrink-0 self-start rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">
-                  {isSharedProjectId(project.id) ? "统一" : "我的"}
                 </span>
               </button>
               <button

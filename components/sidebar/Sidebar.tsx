@@ -21,6 +21,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { exportConversation } from "@/lib/markdown-export";
 import { isSharedProjectId } from "@/lib/constants";
+import { formatProjectUpdatedAt } from "@/lib/project-time";
 import type { ChatProject, Conversation } from "@/types/chat";
 
 export function Sidebar({
@@ -156,13 +157,18 @@ export function Sidebar({
                 ) : (
                   <Folder className="h-4 w-4 shrink-0" />
                 )}
-                <span className="min-w-0 flex-1 truncate">{project.name}</span>
-                <span className="shrink-0 rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate">{project.name}</span>
+                  <span className="mt-0.5 block truncate text-[11px] leading-4 text-muted/80">
+                    最后修改：{formatProjectUpdatedAt(project.updatedAt)}
+                  </span>
+                </span>
+                <span className="shrink-0 self-start rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">
                   {isSharedProjectId(project.id) ? "统一" : "我的"}
                 </span>
               </button>
               <button
-                className="absolute right-2 top-1.5 rounded-lg p-1.5 text-muted transition hover:bg-panel hover:text-ink"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted transition hover:bg-panel hover:text-ink"
                 onClick={() => onManageProject(project)}
                 aria-label={`${canManageProject(project) ? "设置" : "查看"}项目 ${project.name}`}
                 title={canManageProject(project) ? `设置项目 ${project.name}` : `查看项目内容 ${project.name}`}

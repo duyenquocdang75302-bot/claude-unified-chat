@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { sessionFromRequest } from "@/lib/server/auth";
 import { deleteSharedProject, getSharedProjects, saveSharedProject } from "@/lib/server/shared-project";
+import { sharedProjectManagementIsDisabled } from "@/lib/project-scope";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,6 +20,9 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const session = await sessionFromRequest(request);
   if (!session) return Response.json({ error: "请先登录账号" }, { status: 401 });
+  if (sharedProjectManagementIsDisabled(process.env.SHARED_PROJECT_MANAGEMENT_DISABLED)) {
+    return Response.json({ error: "此网站的统一 Project 仅供查看，请前往主网站维护" }, { status: 403 });
+  }
   if (session.role !== "admin") return Response.json({ error: "只有管理员可以修改统一项目" }, { status: 403 });
   const body = (await request.json().catch(() => null)) as { project?: unknown } | null;
   try {
@@ -32,6 +36,9 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const session = await sessionFromRequest(request);
   if (!session) return Response.json({ error: "请先登录账号" }, { status: 401 });
+  if (sharedProjectManagementIsDisabled(process.env.SHARED_PROJECT_MANAGEMENT_DISABLED)) {
+    return Response.json({ error: "此网站的统一 Project 仅供查看，请前往主网站维护" }, { status: 403 });
+  }
   if (session.role !== "admin") return Response.json({ error: "只有管理员可以删除统一项目" }, { status: 403 });
   try {
     await deleteSharedProject(request.nextUrl.searchParams.get("id") || undefined);

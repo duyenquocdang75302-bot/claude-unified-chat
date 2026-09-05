@@ -1,4 +1,5 @@
 import { DEFAULT_MODEL, SHARED_PROJECT_ID } from "@/lib/constants";
+import { normalizeProjectTime } from "@/lib/project-time";
 import { hasPersistentKv, isProductionRuntime, kvCommand } from "@/lib/server/kv";
 import type { ChatProject, ChatParameters, DocumentAttachment } from "@/types/chat";
 
@@ -31,6 +32,7 @@ export function normalizeSharedProject(value: unknown): ChatProject | null {
   const id = rawId === SHARED_PROJECT_ID || rawId.startsWith(`${SHARED_PROJECT_ID}:`)
     ? rawId
     : SHARED_PROJECT_ID;
+  const createdAt = normalizeProjectTime(input.createdAt, now);
   const project: ChatProject = {
     id,
     name: input.name.trim().slice(0, 60),
@@ -39,8 +41,8 @@ export function normalizeSharedProject(value: unknown): ChatProject | null {
     defaultModel: typeof input.defaultModel === "string" && input.defaultModel.trim() ? input.defaultModel.trim().slice(0, 200) : DEFAULT_MODEL,
     parameters: normalizeParameters(input.parameters),
     knowledge: Array.isArray(input.knowledge) ? input.knowledge.filter(isDocument).slice(0, 20) : [],
-    createdAt: Number.isFinite(input.createdAt) ? Number(input.createdAt) : now,
-    updatedAt: now,
+    createdAt,
+    updatedAt: normalizeProjectTime(input.updatedAt, createdAt),
   };
   return JSON.stringify(project).length > 5_000_000 ? null : project;
 }

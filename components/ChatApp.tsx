@@ -13,12 +13,19 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useModels } from "@/hooks/useModels";
 import { isSharedProjectId } from "@/lib/constants";
-import type { ProjectScope } from "@/lib/project-scope";
+import {
+  canManageSharedProjects,
+  sharedProjectManagementIsDisabled,
+  type ProjectScope,
+} from "@/lib/project-scope";
 
 export function ChatApp() {
   const chat = useChat();
   const { user } = useAuth();
-  const canManageProjects = user?.role === "admin";
+  const sharedManagementDisabled = sharedProjectManagementIsDisabled(
+    process.env.NEXT_PUBLIC_SHARED_PROJECT_MANAGEMENT_DISABLED,
+  );
+  const canManageProjects = canManageSharedProjects(user?.role === "admin", sharedManagementDisabled);
   const canManageProject = (project: { id: string }) => canManageProjects || !isSharedProjectId(project.id);
   const { settings } = useSettings();
   const { models, loading } = useModels();

@@ -55,12 +55,13 @@ export async function requestChat(
 
     if (response.ok) return response;
     const body = (await response.json().catch(() => null)) as { error?: string } | null;
-    const retryDelayMs = chatRetryDelayMs(response.status, attempt);
+    const fallbackAttempted = response.headers.get("x-model-fallback-attempted") === "true";
+    const retryDelayMs = fallbackAttempted ? null : chatRetryDelayMs(response.status, attempt);
     if (retryDelayMs !== null && !signal.aborted) {
       await waitForRetry(signal, retryDelayMs);
       continue;
     }
-    const exhaustedError = exhaustedChatError(response.status);
+    const exhaustedError = exhaustedChatError(response.status, fallbackAttempted);
     if (exhaustedError) throw new Error(exhaustedError);
     throw new Error(body?.error || `请求失败（${response.status}）`);
   }

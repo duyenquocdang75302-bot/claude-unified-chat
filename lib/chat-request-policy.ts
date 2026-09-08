@@ -12,8 +12,9 @@ export function chatRetryDelayMs(status: number, failedAttempt: number) {
   return RETRIES_BY_STATUS[status]?.[failedAttempt] ?? null;
 }
 
-export function exhaustedChatError(status: number) {
+export function exhaustedChatError(status: number, fallbackAttempted = false) {
   if (status === 424) {
+    if (fallbackAttempted) return "当前模型及备用模型渠道均暂时不可用，请稍后重新生成";
     return "当前模型渠道暂无可用账号，已自动重试 3 次仍未恢复；请稍后重新生成或先切换其他模型";
   }
   if (status === 524) {

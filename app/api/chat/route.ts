@@ -7,6 +7,7 @@ import { UpstreamTokenTracker } from "@/lib/server/token-tracker";
 import { getSharedProject } from "@/lib/server/shared-project";
 import { isSharedProjectId, UPSTREAM_MAX_TOKENS_PER_REQUEST } from "@/lib/constants";
 import { mergeProjectSystemPrompt } from "@/lib/project-utils";
+import { isUnavailableModelChannel, modelFallbackCandidates, shouldTryNextFallback } from "@/lib/model-fallback";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -62,28 +63,41 @@ export async function POST(request: NextRequest) {
     if (streaming) requestBody.stream_options = { include_usage: true };
 
     const apiKey = apiKeyForSession(session);
-    const sendUpstream = () =>
-      fetch(`${getBaseUrl()}/chat/completions`, {
+    const sendUpstream = (model: string) => {
+      requestBody.model = model;
+      return fetch(`${getBaseUrl()}/chat/completions`, {
         method: "POST",
         headers: upstreamHeaders(apiKey),
         body: JSON.stringify(requestBody),
         signal: controller.signal,
         cache: "no-store",
       });
+    };
 
-    const upstreamStartedAt = Date.now();
-    let upstream = await sendUpstream();
-    let upstreamErrorDetail = "";
-    if (!upstream.ok) {
-      upstreamErrorDetail = await upstream.text().catch(() => "");
+    const sendToModel = async (model: string) => {
+      let response = await sendUpstream(model);
+      let detail = response.ok ? "" : await response.text().catch(() => "");
       const usageOptionUnsupported =
-        streaming &&
-        upstream.status === 400 &&
-        /stream_options|include_usage/i.test(upstreamErrorDetail);
+        streaming && response.status === 400 && /stream_options|include_usage/i.test(detail);
       if (usageOptionUnsupported) {
         delete requestBody.stream_options;
-        upstream = await sendUpstream();
-        if (!upstream.ok) upstreamErrorDetail = await upstream.text().catch(() => "");
+        response = await sendUpstream(model);
+        detail = response.ok ? "" : await response.text().catch(() => "");
+      }
+      return { response, detail };
+    };
+
+    const upstreamStartedAt = Date.now();
+    const requestedModel = body.model;
+    let actualModel = requestedModel;
+    let fallbackAttempted = false;
+    let { response: upstream, detail: upstreamErrorDetail } = await sendToModel(actualModel);
+    if (isUnavailableModelChannel(upstream.status, upstreamErrorDetail)) {
+      for (const fallbackModel of modelFallbackCandidates(requestedModel, process.env.MODEL_FALLBACKS)) {
+        fallbackAttempted = true;
+        actualModel = fallbackModel;
+        ({ response: upstream, detail: upstreamErrorDetail } = await sendToModel(actualModel));
+        if (upstream.ok || !shouldTryNextFallback(upstream.status, upstreamErrorDetail)) break;
       }
     }
 
@@ -92,7 +106,8 @@ export async function POST(request: NextRequest) {
       console.error("Upstream chat error", {
         status: upstream.status,
         durationMs: Date.now() - upstreamStartedAt,
-        model: body.model,
+        model: actualModel,
+        requestedModel,
         messageCount: messages.length,
         requestBytes: Buffer.byteLength(JSON.stringify(requestBody)),
         maxTokens: requestBody.max_tokens,
@@ -101,7 +116,10 @@ export async function POST(request: NextRequest) {
       });
       return Response.json(
         { error: friendlyUpstreamError(upstream.status, upstreamErrorDetail) },
-        { status: upstream.status },
+        {
+          status: upstream.status,
+          headers: fallbackAttempted ? { "X-Model-Fallback-Attempted": "true" } : undefined,
+        },
       );
     }
     if (!upstream.body) {
@@ -125,7 +143,7 @@ export async function POST(request: NextRequest) {
         await recordUsage({
           userId: session.id,
           username: session.username,
-          model: body.model as string,
+          model: actualModel,
           purpose: body.purpose === "title" ? "title" : "chat",
           ...usage,
         });
@@ -197,6 +215,8 @@ export async function POST(request: NextRequest) {
         "Cache-Control": "no-cache, no-transform",
         Connection: "keep-alive",
         "X-Accel-Buffering": "no",
+        "X-Actual-Model": actualModel,
+        ...(actualModel !== requestedModel ? { "X-Requested-Model": requestedModel } : {}),
       },
     });
   } catch (error) {

@@ -474,7 +474,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const project = projectsRef.current.find((item) => item.id === conversation.projectId);
-      const requestConversation: Conversation = {
+      let requestConversation: Conversation = {
         ...conversation,
         parameters: {
           ...conversation.parameters,
@@ -512,6 +512,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       do {
         finishReason = null;
         const response = await requestChat(requestConversation, requestMessages, controller.signal);
+        const actualModel = response.headers.get("x-actual-model")?.trim();
+        if (actualModel && actualModel !== requestConversation.model) {
+          const previousModel = requestConversation.model;
+          requestConversation = { ...requestConversation, model: actualModel };
+          mutateConversation(conversation.id, (current) => ({ ...current, model: actualModel, updatedAt: Date.now() }));
+          notify(`${previousModel} 渠道暂不可用，已自动切换到 ${actualModel}`, "success");
+        }
         const responseLengthBeforeRequest = responseText.length;
         try {
           await consumeChatStream(response, {

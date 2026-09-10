@@ -7,7 +7,12 @@ import { UpstreamTokenTracker } from "@/lib/server/token-tracker";
 import { getSharedProject } from "@/lib/server/shared-project";
 import { isSharedProjectId, UPSTREAM_MAX_TOKENS_PER_REQUEST } from "@/lib/constants";
 import { mergeProjectSystemPrompt } from "@/lib/project-utils";
-import { isUnavailableModelChannel, modelFallbackCandidates, shouldTryNextFallback } from "@/lib/model-fallback";
+import {
+  isUnavailableModelChannel,
+  isUnsupportedTemperature,
+  modelFallbackCandidates,
+  shouldTryNextFallback,
+} from "@/lib/model-fallback";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -77,10 +82,19 @@ export async function POST(request: NextRequest) {
     const sendToModel = async (model: string) => {
       let response = await sendUpstream(model);
       let detail = response.ok ? "" : await response.text().catch(() => "");
-      const usageOptionUnsupported =
-        streaming && response.status === 400 && /stream_options|include_usage/i.test(detail);
-      if (usageOptionUnsupported) {
-        delete requestBody.stream_options;
+      // Compatibility retries are deliberately bounded. Some OpenAI-compatible
+      // relays reject optional fields for newer models even though the same
+      // fields remain valid for other models.
+      for (let compatibilityAttempt = 0; compatibilityAttempt < 2 && !response.ok; compatibilityAttempt += 1) {
+        const usageOptionUnsupported =
+          streaming && response.status === 400 && "stream_options" in requestBody && /stream_options|include_usage/i.test(detail);
+        if (usageOptionUnsupported) {
+          delete requestBody.stream_options;
+        } else if ("temperature" in requestBody && isUnsupportedTemperature(response.status, detail)) {
+          delete requestBody.temperature;
+        } else {
+          break;
+        }
         response = await sendUpstream(model);
         detail = response.ok ? "" : await response.text().catch(() => "");
       }

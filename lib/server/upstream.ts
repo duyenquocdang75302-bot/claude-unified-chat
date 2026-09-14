@@ -1,5 +1,5 @@
 export function getBaseUrl() {
-  return (process.env.OPENAI_BASE_URL || "https://apikey.fun/v1").replace(/\/+$/, "");
+  return (process.env.OPENAI_BASE_URL || "https://api.apikey.fan/v1").replace(/\/+$/, "");
 }
 
 export function upstreamHeaders(apiKey: string) {

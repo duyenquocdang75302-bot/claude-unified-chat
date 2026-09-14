@@ -13,7 +13,7 @@ are rejected so data is not silently lost.
 
 The application supports multiple server-side shared projects. All authenticated accounts can use each project's instructions and knowledge files, while only an account with role `admin` can create, edit, upload, or delete shared projects. Every account can also create and manage private projects stored only in that account's browser storage. On Vercel, shared project data and usage records are stored in Upstash Redis through `KV_REST_API_URL` and `KV_REST_API_TOKEN`; the local Cloudflare adapter remains available for legacy self-hosting. Chat histories and private projects remain separated per account in the browser. The project endpoints are `GET /api/project`, `PUT /api/project` (admin only), and `DELETE /api/project?id=<project-id>` (admin only). Existing single-project data is migrated automatically on first read.
 
-一个以 Claude 系列模型为主、兼容 OpenAI API 格式的自托管 AI 聊天网站。项目默认连接 [APIKEY.FUN](https://apikey.fun)，所有模型请求均经 Next.js 服务端代理，API Key 不会发送到浏览器。
+一个以 Claude 系列模型为主、兼容 OpenAI API 格式的自托管 AI 聊天网站。项目默认连接 [APIKEY.FAN](https://apikey.fan)，所有模型请求均经 Next.js 服务端代理，API Key 不会发送到浏览器。
 
 ## 功能
 
@@ -60,7 +60,7 @@ The application supports multiple server-side shared projects. All authenticated
 3. 编辑 `.env.local`，填入真实 API Key：
 
    ```dotenv
-   OPENAI_BASE_URL=https://apikey.fun/v1
+   OPENAI_BASE_URL=https://api.apikey.fan/v1
    OPENAI_API_KEY=sk-xxxx
    ACCESS_PASSWORD=
    ```
@@ -77,7 +77,7 @@ The application supports multiple server-side shared projects. All authenticated
 
 | 变量 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| `OPENAI_BASE_URL` | 否 | `https://apikey.fun/v1` | OpenAI 兼容 API 的基础地址，不要包含末尾 `/` |
+| `OPENAI_BASE_URL` | 否 | `https://api.apikey.fan/v1` | OpenAI 兼容 API 的基础地址，不要包含末尾 `/` |
 | `OPENAI_API_KEY` | 是 | 无 | 仅由服务端读取的 API Key |
 | `ACCESS_PASSWORD` | 否 | 空 | 设置后访问网页前必须输入该密码 |
 | `AUTH_SECRET` | 多用户时是 | 无 | 至少 32 位随机字符串，用于签名登录 Cookie |
@@ -117,7 +117,7 @@ The application supports multiple server-side shared projects. All authenticated
 1. 在项目根目录创建 `.env`：
 
    ```dotenv
-   OPENAI_BASE_URL=https://apikey.fun/v1
+   OPENAI_BASE_URL=https://api.apikey.fan/v1
    OPENAI_API_KEY=sk-xxxx
    ACCESS_PASSWORD=可选密码
    ```

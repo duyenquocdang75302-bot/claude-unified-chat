@@ -52,6 +52,25 @@ export function recentMessagesForUpstream(
   return firstUserIndex > 0 ? selected.slice(firstUserIndex) : selected;
 }
 
+// A request-only continuation is still part of the same user turn. Keep its
+// original images on the newest user message so the relay can see the pixels,
+// without resending images on an unrelated later text-only follow-up.
+export function continuationMessagesWithImages(
+  baseMessages: ChatMessage[],
+  completedPart: ChatMessage,
+  continuationInstruction: ChatMessage,
+) {
+  const latestUserMessage = [...baseMessages].reverse().find((message) => message.role === "user");
+  return [
+    ...baseMessages,
+    completedPart,
+    {
+      ...continuationInstruction,
+      images: latestUserMessage?.images?.length ? latestUserMessage.images : undefined,
+    },
+  ];
+}
+
 export function toUpstreamMessages(messages: ChatMessage[]) {
   const includedMessages = recentMessagesForUpstream(messages);
   let latestAttachmentIndex = -1;

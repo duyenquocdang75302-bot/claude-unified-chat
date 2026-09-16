@@ -5,6 +5,7 @@ import { requestChat, requestConversationTitle } from "@/lib/api-client";
 import { consumeChatStream, isRecoverableChatStreamError } from "@/lib/chat-stream";
 import { documentCharacterLimit } from "@/lib/model-utils";
 import { mergeProjectSystemPrompt } from "@/lib/project-utils";
+import { continuationMessagesWithImages } from "@/lib/message-utils";
 import {
   loadActiveConversationId,
   loadActiveProjectId,
@@ -507,7 +508,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           createdAt: Date.now(),
           status: "complete",
         };
-        return [...baseMessages, completedPart, continuationInstruction];
+        return continuationMessagesWithImages(baseMessages, completedPart, continuationInstruction);
       };
       do {
         finishReason = null;
